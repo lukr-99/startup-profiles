@@ -4,11 +4,13 @@ Snapshot of Windows Startup Profiles as of 2026-08-31. For the full design see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); for conventions see [AGENTS.md](AGENTS.md) and
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Status: Milestones 1-4 done; Milestone 5 (integration contract) not started
+## Status: Milestones 1-5 done; installer + conditions next
 
 The app runs today: launch it and a WPF login selector appears; pick a context and it launches that
 profile's actions, then lives in the tray. Profiles are editable in the config window. A loopback HTTP
-API and a bundled agent skill expose the same data to agents.
+API and a bundled agent skill expose the same data to agents. External apps can *request* to be added
+to a profile via the integration contract (protocol / CLI / API), and the user approves in a Startup
+Profiles-owned confirmation window.
 
 ## Build, test, run
 
@@ -53,14 +55,26 @@ Key design points:
   `Relay`/`MicForge` as reference implementations. One top-level type per file; Conventional Commits;
   no AI-attribution trailer; PolyForm Noncommercial license.
 
+## Milestone 5 - integration contract (done)
+
+`Core/Integration` (portable) + `App/Integration` (host) implement the contract from
+[docs/INTEGRATION.md](docs/INTEGRATION.md). `RegistrationRequestParser` parses both the
+`startupprofiles://register?...` URI and the `register --app-id ...` CLI form; `ProfileRegistrar`
+appends a launch action to the chosen profiles (idempotent per target). Three entry points feed one
+trusted, Startup Profiles-owned confirmation window: the protocol, the CLI, and `POST /api/register`
+(two-phase confirm, like delete). A one-shot `register` invocation routes its write through a running
+instance's loopback API when one is live, so the running app stays the single writer of `profiles.json`.
+
+One deliberate gap: **registering the `startupprofiles://` scheme with Windows is left to the installer**
+(below). Until then, invoke the exe with the URI directly. `supportsMinimized` is carried as metadata
+only - launch-minimized is not yet an action field.
+
 ## Next
 
-1. **Milestone 5 - integration contract** (`Core/Integration` + App): the `startupprofiles://register`
-   protocol handler and `StartupProfiles.exe register ...` CLI, feeding an app-owned confirmation UI.
-   `POST /api/register` currently returns 501 as the placeholder. See [docs/INTEGRATION.md](docs/INTEGRATION.md).
-2. **Installer** (`install/install.ps1` is still a placeholder): publish, install to
-   `%LOCALAPPDATA%\Programs`, register the launcher at login via `IStartupRegistration`, register the
-   protocol, and install the agent skill.
-3. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.
-4. Optional: an app icon (`ApplicationIcon` and a real tray icon), and revisiting the dotnetlib
+1. **Installer** (`install/install.ps1` is still a placeholder): publish, install to
+   `%LOCALAPPDATA%\Programs`, register the launcher at login via `IStartupRegistration`, **register the
+   `startupprofiles://` protocol** (HKCU `Software\Classes\startupprofiles` pointing at the exe with
+   `"%1"`), and install the agent skill.
+2. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.
+3. Optional: an app icon (`ApplicationIcon` and a real tray icon), and revisiting the dotnetlib
    dependency once a shared feed exists.
