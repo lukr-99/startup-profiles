@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>StartupProfiles</AssemblyName>
+    <RootNamespace>StartupProfiles.App</RootNamespace>
+    <!-- <ApplicationIcon>wwwroot\assets\startupprofiles.ico</ApplicationIcon> -->
+    <Version>0.1.0</Version>
+    <Product>Windows Startup Profiles</Product>
+    <!-- Self-contained single-file publish defaults (overridable on the CLI) -->
+    <RuntimeIdentifier Condition="'$(PublishSingleFile)' == 'true'">win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- Embedded launcher / config UI is hosted in a WebView2 window over the loopback server.
+       Add the package with the current version when UI work begins:
+         dotnet add src/StartupProfiles.App package Microsoft.Web.WebView2
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="..." />
+  </ItemGroup>
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\StartupProfiles.Core\StartupProfiles.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="wwwroot\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/StartupProfiles.App/StartupProfiles.App.csproj" />
+    <Project Path="src/StartupProfiles.Core/StartupProfiles.Core.csproj" />
+  </Folder>
+</Solution>
