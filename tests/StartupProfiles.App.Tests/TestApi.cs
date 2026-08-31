@@ -10,6 +10,7 @@ using StartupProfiles.App.Api;
 using StartupProfiles.Core.Actions;
 using StartupProfiles.Core.Confirmations;
 using StartupProfiles.Core.Execution;
+using StartupProfiles.Core.Integration;
 using StartupProfiles.Core.Storage;
 
 namespace StartupProfiles.App.Tests;
@@ -58,6 +59,7 @@ internal sealed class TestApi : IAsyncDisposable
         builder.Services.AddSingleton(sp => new ProfileRunner(sp.GetRequiredService<ActionHandlerRegistry>(), new TaskDelayer()));
         builder.Services.AddSingleton<ProfileExecutor>();
         builder.Services.AddSingleton<ConfirmationService>();
+        builder.Services.AddSingleton<IProfileRegistrar>(sp => new ProfileRegistrar(sp.GetRequiredService<IProfileStore>()));
 
         var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");

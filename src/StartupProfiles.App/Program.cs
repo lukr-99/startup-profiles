@@ -102,6 +102,8 @@ internal static class Program
             sp.GetRequiredService<Core.Actions.ActionHandlerRegistry>(), new TaskDelayer()));
         builder.Services.AddSingleton<ProfileExecutor>();
         builder.Services.AddSingleton<ConfirmationService>();
+        builder.Services.AddSingleton<Core.Integration.IProfileRegistrar>(sp =>
+            new Core.Integration.ProfileRegistrar(sp.GetRequiredService<IProfileStore>()));
 
         var app = builder.Build();
         app.Urls.Add($"http://127.0.0.1:{options.Port}");

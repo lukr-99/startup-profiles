@@ -101,12 +101,79 @@ public sealed class ApiEndpointsTests
     }
 
     [Fact]
-    public async Task Register_ReturnsNotImplemented()
+    public async Task Register_FirstCall_RequiresConfirmationAndAddsNothing()
     {
         await using var api = await TestApi.StartAsync();
+        var body = new { appId = "com.example.app", name = "Example App", target = @"C:\Apps\example.exe", profileIds = new[] { "dev" } };
 
-        var response = await api.Client.PostAsync("/api/register", content: null);
+        var response = await api.Client.PostAsJsonAsync("/api/register", body);
+        var preview = await response.Content.ReadFromJsonAsync<JsonElement>();
 
-        Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
+        Assert.True(preview.GetProperty("required").GetBoolean());
+        Assert.False(string.IsNullOrEmpty(preview.GetProperty("confirmToken").GetString()));
+
+        var dev = await api.Client.GetFromJsonAsync<Profile>("/api/profiles/dev", TestApi.Json);
+        Assert.Empty(dev!.Actions);
+    }
+
+    [Fact]
+    public async Task Register_WithConfirmationToken_AddsLaunchActionToProfile()
+    {
+        await using var api = await TestApi.StartAsync();
+        var body = new { appId = "com.example.app", name = "Example App", target = @"C:\Apps\example.exe", arguments = "--fast", profileIds = new[] { "dev" } };
+
+        var first = await api.Client.PostAsJsonAsync("/api/register", body);
+        var token = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("confirmToken").GetString();
+
+        var confirmed = await api.Client.PostAsJsonAsync($"/api/register?confirmToken={token}", body);
+        var result = await confirmed.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(result.GetProperty("ok").GetBoolean());
+
+        var dev = await api.Client.GetFromJsonAsync<Profile>("/api/profiles/dev", TestApi.Json);
+        var action = Assert.Single(dev!.Actions);
+        Assert.Equal(ActionType.LaunchApp, action.Type);
+        Assert.Equal(@"C:\Apps\example.exe", action.Target);
+        Assert.Equal("--fast", action.Arguments);
+    }
+
+    [Fact]
+    public async Task Register_TokenIsBoundToTheChosenProfiles()
+    {
+        await using var api = await TestApi.StartAsync();
+        var forDev = new { appId = "com.example.app", name = "Example App", target = @"C:\Apps\example.exe", profileIds = new[] { "dev" } };
+
+        var first = await api.Client.PostAsJsonAsync("/api/register", forDev);
+        var token = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("confirmToken").GetString();
+
+        // Replaying the token against a different profile set must not consume it - it re-previews instead.
+        var forGames = new { appId = "com.example.app", name = "Example App", target = @"C:\Apps\example.exe", profileIds = new[] { "games" } };
+        var replayed = await api.Client.PostAsJsonAsync($"/api/register?confirmToken={token}", forGames);
+        var body = await replayed.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.GetProperty("required").GetBoolean());
+
+        var games = await api.Client.GetFromJsonAsync<Profile>("/api/profiles/games", TestApi.Json);
+        Assert.Empty(games!.Actions);
+    }
+
+    [Fact]
+    public async Task Register_MissingTarget_IsBadRequest()
+    {
+        await using var api = await TestApi.StartAsync();
+        var body = new { appId = "com.example.app", name = "Example App", profileIds = new[] { "dev" } };
+
+        var response = await api.Client.PostAsJsonAsync("/api/register", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Register_NoProfiles_IsBadRequest()
+    {
+        await using var api = await TestApi.StartAsync();
+        var body = new { appId = "com.example.app", name = "Example App", target = @"C:\Apps\example.exe" };
+
+        var response = await api.Client.PostAsJsonAsync("/api/register", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 }

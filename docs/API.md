@@ -1,6 +1,6 @@
 # Startup Profiles local API
 
-> Implemented (Milestone 3), except `POST /api/register`, which returns 501 until Milestone 5.
+> Implemented (Milestone 3); `POST /api/register` landed with Milestone 5.
 
 The configuration UI and any local agent talk to a **loopback-only** HTTP server bound to
 `127.0.0.1` (mirroring Treeline). When running, the app writes its live URL to a discovery
@@ -23,7 +23,7 @@ All request/response bodies are JSON. Operation endpoints return
 | DELETE | `/api/profiles/{id}` | Delete a profile (two-phase confirm, see below). |
 | POST | `/api/profiles/{id}/run` | Execute a profile now, record history, return the run. |
 | GET | `/api/history` | Recent execution runs (`?take=` to limit). |
-| POST | `/api/register` | Integration registration (see INTEGRATION.md). Returns 501 for now. |
+| POST | `/api/register` | Request that an app be added to profiles (two-phase confirm; see INTEGRATION.md). |
 
 All bodies are JSON, camelCase, with enums as camelCase strings.
 
@@ -31,3 +31,33 @@ Deleting a profile follows a single-use, server-issued confirmation token. `DELE
 without a token returns `{ required: true, confirmToken, summary }`; resubmit as
 `DELETE /api/profiles/{id}?confirmToken=<token>` to actually delete. The token is bound to the exact
 action, single-use, and expires quickly, so an agent cannot skip the prompt.
+
+## Registration
+
+`POST /api/register` lets a local agent or app request that an application be added to one or more
+profiles. Startup Profiles owns the decision, so it uses the same two-phase confirmation as delete: an
+app is never added silently.
+
+Request body:
+
+```json
+{
+  "appId": "com.example.app",
+  "name": "Example App",
+  "target": "C:\\Apps\\example.exe",
+  "arguments": "--fast",
+  "publisher": "Example Inc",
+  "suggestedProfile": "dev",
+  "supportsMinimized": true,
+  "profileIds": ["dev", "games"]
+}
+```
+
+`appId`, `name`, `target`, and a non-empty `profileIds` are required; `suggestedProfile` is a hint only
+and is not applied on its own. The first call returns `{ required: true, confirmToken, summary }` with a
+human-readable summary of the change and adds nothing. Resubmit the **same body** as
+`POST /api/register?confirmToken=<token>` to apply it; the response is
+`{ ok: true, output }`, where `output` names the profiles the app was added to, was already in, or that
+were unknown. The token is bound to the app and the exact `profileIds`, is single-use, and expires
+quickly, so it cannot be replayed against a different app or profile set. Adding the same target to a
+profile twice is idempotent (reported as "already in").
