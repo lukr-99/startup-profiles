@@ -1,8 +1,9 @@
 # Architecture
 
-> Design document. Milestone 1 (the Core domain, storage, and execution engine) is implemented;
-> the App host, UI, loopback API, and integration contract are not. See
-> [Implementation status](#implementation-status) for exactly what exists today.
+> Design document. Milestones 1-2 are implemented: the Core domain, storage, and execution engine,
+> plus the Windows platform adapters (startup registration, service, VPN). The App host, UI, loopback
+> API, and integration contract are not. See [Implementation status](#implementation-status) for
+> exactly what exists today.
 
 ## Guiding principle
 
@@ -113,9 +114,23 @@ stays portable-friendly and testable.
 
 ## Implementation status
 
-Milestone 1 implemented `StartupProfiles.Core` (net10.0, no UI/ASP.NET deps) plus a
-`tests/StartupProfiles.Core.Tests` xUnit project wired into the solution. `App` is still the
-skeleton host.
+Milestone 1 implemented `StartupProfiles.Core` (net10.0, no UI/ASP.NET deps); Milestone 2 added
+`StartupProfiles.Windows` (net10.0-windows) with the platform adapters. Both have xUnit projects under
+`tests/` wired into the solution. `App` is still the skeleton host.
+
+Project layout now:
+
+```
+src/StartupProfiles.Core      net10.0            models, actions, execution, storage (portable seams)
+src/StartupProfiles.Windows   net10.0-windows    Windows adapters behind the Core seams
+src/StartupProfiles.App       net10.0-windows    skeleton host (references Core + Windows)
+tests/StartupProfiles.Core.Tests        net10.0
+tests/StartupProfiles.Windows.Tests     net10.0-windows
+```
+
+Platform code stays out of the portable Core: Core owns the seam interfaces
+(`Core/Windows/IStartupRegistration`, `IServiceController`, `IVpnConnector`) and the handlers that use
+them; `StartupProfiles.Windows` owns the concrete adapters.
 
 Built in Core:
 
@@ -131,6 +146,19 @@ Built in Core:
 - **Storage/** - JSON persistence under `%APPDATA%\StartupProfiles` (`profiles.json`, `config.json`,
   `history.json`) via `ProfileStore` / `ConfigStore` / `HistoryStore`. A fresh install seeds the six
   default profiles. Enums persist as names; writes are atomic (temp file + move).
+- **Windows/** - the platform seam interfaces `IStartupRegistration`, `IServiceController`,
+  `IVpnConnector`, plus the `StartServiceHandler` / `StartVpnHandler` action handlers that depend on
+  them (in `Actions/`).
+
+Built in StartupProfiles.Windows (adapters):
+
+- `WindowsStartupRegistration` - HKCU `...\CurrentVersion\Run` value (per-user, no elevation).
+- `WindowsServiceController` - starts a service via `System.ServiceProcess.ServiceController`, waiting
+  for `Running` up to a timeout.
+- `WindowsVpnConnector` - connects a named entry via `rasdial` using saved credentials (never passes
+  credentials on the command line).
+- `WindowsRuntime.CreateActionRegistry()` - the Windows composition root wiring the real launcher plus
+  service/VPN adapters into `ActionHandlerRegistry.CreateDefault`.
 
 Deviations and decisions worth noting:
 
@@ -140,9 +168,12 @@ Deviations and decisions worth noting:
   clock, delays, and process launching): `IProcessLauncher` / `SystemProcessLauncher`, `IDelayer` /
   `TaskDelayer`, and `TimeProvider`. Composition happens in `ActionHandlerRegistry.CreateDefault`;
   the App host will own the real composition root.
-- `ActionType` carries `StartService` and `StartVpn`, but these need Windows APIs and have **no
-  handler yet** (deferred to Milestone 2, `Core/Windows`). A profile that uses one records a clear
-  "no handler" failure rather than throwing.
+- `ActionType.StartService` / `StartVpn` handlers are registered only when their platform adapter is
+  passed to `ActionHandlerRegistry.CreateDefault`. A portable host (or a unit test) that omits them
+  records a clear "no handler" failure rather than throwing; the Windows host wires them via
+  `WindowsRuntime`.
+- `IStartupRegistration` is a host service (not an action). The Windows adapter targets a per-user Run
+  key; its registry path is injectable so tests use a throwaway HKCU subkey instead of the real key.
 - Launch-minimized and launch-as-admin are flags on the launch action (`RunAsAdmin`), not separate
   action types; "open several URLs" is several `OpenUrl` actions; `wait-for` and `check-running` are
   deferred.
@@ -150,9 +181,10 @@ Deviations and decisions worth noting:
   `TreatWarningsAsErrors`, and `latest-recommended` analysis; `tests/Directory.Build.props`
   suppresses CA1707 for `Method_Condition_ExpectedResult` test names.
 
-Not yet started: `Core/Windows`, `Core/Integration`, and everything under `App` (loopback API, tray,
-launcher, config UI). The `%APPDATA%` layout, JSON contracts, and PolyForm/AGENTS baseline documents
-remain open items tracked outside this milestone.
+Not yet started: `Core/Integration`, and everything under `App` (loopback API, tray, launcher, config
+UI). The Windows adapters carry platform tests only for the registry round-trip; service and VPN
+control are thin wrappers over the OS and are exercised manually. The PolyForm/AGENTS baseline
+documents remain open items tracked outside these milestones.
 
 ## Future ideas (not scheduled)
 

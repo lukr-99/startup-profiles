@@ -1,11 +1,13 @@
 using StartupProfiles.Core.Models;
+using StartupProfiles.Core.Windows;
 
 namespace StartupProfiles.Core.Actions;
 
 /// <summary>
 /// Holds the action handlers keyed by <see cref="ActionType"/> (mirrors Relay's ProviderRegistry).
-/// <see cref="ActionType.StartService"/> and <see cref="ActionType.StartVpn"/> need Windows APIs and
-/// are deferred, so they have no handler yet; the runner reports a clear failure if a profile uses one.
+/// The portable handlers are always registered; the Windows-only <see cref="ActionType.StartService"/>
+/// and <see cref="ActionType.StartVpn"/> handlers are added only when a platform adapter is supplied,
+/// so a portable host reports a clear "no handler" failure instead of throwing.
 /// </summary>
 public sealed class ActionHandlerRegistry
 {
@@ -15,8 +17,14 @@ public sealed class ActionHandlerRegistry
 
     public bool TryGet(ActionType type, out IActionHandler handler) => _handlers.TryGetValue(type, out handler!);
 
-    /// <summary>Wires the portable handlers to a process launcher. Called from the composition root.</summary>
-    public static ActionHandlerRegistry CreateDefault(IProcessLauncher launcher)
+    /// <summary>
+    /// Wires the portable handlers to a process launcher, plus the Windows service/VPN handlers when
+    /// their adapters are supplied. Called from the composition root.
+    /// </summary>
+    public static ActionHandlerRegistry CreateDefault(
+        IProcessLauncher launcher,
+        IServiceController? services = null,
+        IVpnConnector? vpn = null)
     {
         var registry = new ActionHandlerRegistry();
         registry.Register(new LaunchAppHandler(launcher));
@@ -26,6 +34,10 @@ public sealed class ActionHandlerRegistry
         registry.Register(new RunScriptHandler(launcher));
         registry.Register(new KillProcessHandler(launcher));
         registry.Register(new DelayHandler());
+
+        if (services is not null) registry.Register(new StartServiceHandler(services));
+        if (vpn is not null) registry.Register(new StartVpnHandler(vpn));
+
         return registry;
     }
 }

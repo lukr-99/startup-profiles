@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\StartupProfiles.Core\StartupProfiles.Core.csproj" />
+    <ProjectReference Include="..\StartupProfiles.Windows\StartupProfiles.Windows.csproj" />
   </ItemGroup>
 
   <ItemGroup>
