@@ -23,9 +23,10 @@ What are you doing?
 Pick a context and it runs only the apps, URLs, scripts, folders and services that belong
 to that profile - as a small declarative startup workflow, not just a list of `.exe`s.
 
-> Status: **skeleton**. This repository is the project scaffold - solution layout, empty
-> Core/App projects, and the design docs. No execution engine is implemented yet. See
-> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the plan.
+> Status: **early**. The portable Core (models, storage, execution engine) and the Windows platform
+> adapters (startup registration, service, VPN) are implemented and tested; the App host, launcher UI,
+> loopback API, and integration contract are not built yet. See
+> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the plan and the current implementation status.
 
 ## The idea
 
@@ -103,6 +104,7 @@ Contract details: [docs/INTEGRATION.md](docs/INTEGRATION.md).
 git clone https://github.com/lukr-99/startup-profiles.git
 cd startup-profiles
 dotnet build StartupProfiles.slnx
+dotnet test StartupProfiles.slnx
 ```
 
 An `install/install.ps1` script (register at login, Start Menu shortcut, install the agent
@@ -110,4 +112,4 @@ skill) will land with the first working build.
 
 ## License
 
-[MIT](LICENSE) (c) 2026 lukr-99
+[PolyForm Noncommercial 1.0.0](LICENSE.md) - free for noncommercial use. Copyright 2026 lukr-99.
