@@ -5,10 +5,14 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- WPF for the launcher / config windows; WinForms only for the tray NotifyIcon. -->
+    <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>StartupProfiles</AssemblyName>
     <RootNamespace>StartupProfiles.App</RootNamespace>
-    <!-- <ApplicationIcon>wwwroot\assets\startupprofiles.ico</ApplicationIcon> -->
+    <!-- Pin to the installed shared runtime; the SDK otherwise resolves 10.0.9 for the WPF
+         markup-compile helper, which is not installed here. Roll-forward still runs it on newer patches. -->
+    <RuntimeFrameworkVersion>10.0.7</RuntimeFrameworkVersion>
     <Version>0.1.0</Version>
     <Product>Windows Startup Profiles</Product>
     <!-- Self-contained single-file publish defaults (overridable on the CLI) -->
@@ -19,23 +23,15 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
-  <!-- Embedded launcher / config UI is hosted in a WebView2 window over the loopback server.
-       Add the package with the current version when UI work begins:
-         dotnet add src/StartupProfiles.App package Microsoft.Web.WebView2
+  <!-- WinForms is used only by the tray icon (which imports it explicitly). Drop the implicit
+       global using so WPF types (Application, MessageBox, Button, ...) resolve unambiguously. -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Web.WebView2" Version="..." />
+    <Using Remove="System.Windows.Forms" />
   </ItemGroup>
-  -->
 
   <ItemGroup>
     <ProjectReference Include="..\StartupProfiles.Core\StartupProfiles.Core.csproj" />
     <ProjectReference Include="..\StartupProfiles.Windows\StartupProfiles.Windows.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="wwwroot\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
 
 </Project>

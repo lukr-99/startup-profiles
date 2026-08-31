@@ -1,9 +1,13 @@
 # Architecture
 
-> Design document. Milestones 1-3 are implemented: the Core domain/storage/execution engine, the
-> Windows platform adapters, and the App host (loopback API + `endpoint.json` discovery + tray). The
-> launcher and config UIs and the integration contract are not. See
+> Design document. Milestones 1-4 are implemented: the Core domain/storage/execution engine, the
+> Windows platform adapters, the App host (loopback API + `endpoint.json` discovery + tray), and the
+> WPF launcher and config UIs. The integration contract (Milestone 5) is not. See
 > [Implementation status](#implementation-status) for exactly what exists today.
+>
+> Note: this design originally called for a WebView2 UI over the loopback server (the Treeline
+> pattern). Milestone 4 switched to a native **WPF** UI talking to Core in-process; the loopback API
+> remains for agents. See [docs/adr/0001-local-wpf-mvvm.md](adr/0001-local-wpf-mvvm.md).
 
 ## Guiding principle
 
@@ -31,17 +35,22 @@ StartupProfiles.slnx
     Storage/       load/save profiles + config as JSON under %APPDATA%\StartupProfiles
     Windows/       startup registration, process handling, services, elevation helpers
     Integration/   registration-request parsing + the confirmation model
-  src/StartupProfiles.App    net10.0-windows    WinExe host
+  src/StartupProfiles.Windows net10.0-windows    Windows adapters behind the Core seams
+  src/StartupProfiles.App    net10.0-windows    WinExe host (WPF UI + tray + loopback API)
     Program.cs     STA entry point (see file for boot sequence)
-    Api/           loopback-only ASP.NET Core endpoints for the config UI
-    Tray/          NotifyIcon: re-run / switch profile, open config, quit
-    Launcher/      the minimal login selector window (WebView2 over the loopback server)
-    wwwroot/       launcher + config UI assets
+    Api/           loopback-only ASP.NET Core endpoints (for agents / external tools)
+    Tray/          NotifyIcon: re-run a profile, open config, quit
+    Launcher/      the minimal login selector (WPF window + view model)
+    Config/        the profile editor (WPF window + view models)
+    Mvvm/          ObservableObject + RelayCommand (see docs/adr/0001-local-wpf-mvvm.md)
+    Themes/        light/dark semantic-token dictionaries + ThemeManager
 ```
 
 `Core` targets plain `net10.0` so the execution engine and models stay unit-testable and
-free of UI concerns. `App` targets `net10.0-windows` (WinForms + ASP.NET Core, WebView2 UI),
-mirroring the Treeline host pattern.
+free of UI concerns. `App` targets `net10.0-windows` and is a **WPF** app: WPF for the launcher
+and config windows, a WinForms `NotifyIcon` for the tray, and ASP.NET Core for the loopback API.
+The desktop UI talks to Core in-process (through the same stores and `ProfileExecutor`); the
+loopback API exists for agents and external tools, not for the built-in UI.
 
 ## Data model
 
@@ -176,6 +185,21 @@ Built in StartupProfiles.App (host):
   in Core so they are unit-testable; the host and tray both use the executor as the single source of
   truth for running a profile.
 
+Built in StartupProfiles.App (WPF UI - Milestone 4):
+
+- **Launcher** - the login selector (`LauncherWindow` + `LauncherViewModel`): a grid of profile tiles,
+  number-key and Escape shortcuts, "Edit profiles" and "Close". Shown at startup; picking a profile
+  runs it through `ProfileExecutor` and closes the window (the app stays in the tray).
+- **Config** - the profile editor (`ConfigWindow` + `ConfigViewModel`, `ProfileEditor`, `ActionEditor`):
+  list/create/delete profiles, edit name/icon/startup behaviour, add/remove/reorder typed actions,
+  save, run, and JSON export/import. Deleting asks for confirmation; dialogs are behind the
+  `IUserPrompts` seam so the view models are unit-tested without a UI.
+- **Mvvm** - local `ObservableObject` / `RelayCommand` mirroring dotnetlib's shape.
+- **Themes** - light/dark semantic-token `ResourceDictionary` files and a `ThemeManager` that follows
+  the Windows setting in `System` mode; the config window exposes a System/Light/Dark picker.
+- The WPF UI calls Core directly (no HTTP); a WinForms `NotifyIcon` provides the tray on the WPF
+  message loop.
+
 Deviations and decisions worth noting:
 
 - `ProfileAction` gained a `RetryCount` field (default 1) to bound `FailureBehaviour.Retry`; it is
@@ -196,10 +220,16 @@ Deviations and decisions worth noting:
 - A root `Directory.Build.props` (mirroring `dotnetlib`) enables nullable, implicit usings,
   `TreatWarningsAsErrors`, and `latest-recommended` analysis; `tests/Directory.Build.props`
   suppresses CA1707 for `Method_Condition_ExpectedResult` test names.
+- The UI is **WPF**, not the WebView2 approach the original design named. The reasons and trade-offs
+  are in [docs/adr/0001-local-wpf-mvvm.md](adr/0001-local-wpf-mvvm.md).
+- The App project pins `RuntimeFrameworkVersion` to `10.0.7` because the dev SDK resolves `10.0.9` for
+  the WPF markup-compile helper, which is not installed here; roll-forward still runs it on newer
+  patches. Revisit once the box has a matching runtime.
 
-Not yet started: `Core/Integration`, the launcher (login selector) and config UIs, and the
-`wwwroot` assets. The Windows adapters carry platform tests only for the registry round-trip; service
-and VPN control are thin wrappers over the OS and are exercised manually.
+Not yet started: `Core/Integration` and the `startupprofiles://` protocol + CLI (Milestone 5). The
+Windows adapters carry platform tests only for the registry round-trip; service and VPN control are
+thin wrappers over the OS and are exercised manually. WPF windows are covered by view-model tests, not
+UI automation.
 
 ## Future ideas (not scheduled)
 

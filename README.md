@@ -57,14 +57,15 @@ without launching.
 
 ## Architecture
 
-The solution follows the same conventions as [Treeline](https://github.com/lukr-99/treeline):
-a `net10.0-windows` WinForms/ASP.NET host over a portable `net10.0` core, JSON persistence
-under `%APPDATA%`, and a bundled Claude Code skill.
+A portable `net10.0` core drives everything; a `net10.0-windows` WPF host provides the UI, a tray
+icon, and a loopback API. Profiles persist as JSON under `%APPDATA%`, and a Claude Code skill is
+bundled.
 
 ```
 StartupProfiles.slnx
-  src/StartupProfiles.Core   (net10.0)          profiles, actions, execution engine, storage
-  src/StartupProfiles.App    (net10.0-windows)  tray host, loopback API, launcher + config UI
+  src/StartupProfiles.Core     (net10.0)          profiles, actions, execution engine, storage
+  src/StartupProfiles.Windows  (net10.0-windows)  Windows adapters (startup, service, VPN)
+  src/StartupProfiles.App      (net10.0-windows)  WPF launcher + config UI, tray, loopback API
 ```
 
 | Layer | Responsibility |
