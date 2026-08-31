@@ -1,7 +1,8 @@
 # Architecture
 
-> Design document for the skeleton. Nothing here is implemented yet; this is the blueprint
-> the empty projects are laid out against.
+> Design document. Milestone 1 (the Core domain, storage, and execution engine) is implemented;
+> the App host, UI, loopback API, and integration contract are not. See
+> [Implementation status](#implementation-status) for exactly what exists today.
 
 ## Guiding principle
 
@@ -109,6 +110,49 @@ stays portable-friendly and testable.
 - **Configuration UI** - the richer profile editor (add/reorder actions, set conditions,
   import/export). Never shown at login unless asked for.
 - **Tray** - switch to / re-run another profile after login; open the config UI.
+
+## Implementation status
+
+Milestone 1 implemented `StartupProfiles.Core` (net10.0, no UI/ASP.NET deps) plus a
+`tests/StartupProfiles.Core.Tests` xUnit project wired into the solution. `App` is still the
+skeleton host.
+
+Built in Core:
+
+- **Models/** - `Profile`, `ProfileAction`, `ActionType`, `StartupBehaviour`, `FailureBehaviour`,
+  and placeholder `ProfileCondition` / `ConditionType` (stored, not evaluated).
+- **Actions/** - `IActionHandler` + one handler per type, dispatched through `ActionHandlerRegistry`
+  (keyed by `ActionType`; Relay's provider registry is the reference shape). Handlers implemented:
+  `LaunchApp`, `OpenUrl` / `OpenFile` / `OpenFolder` (one `ShellOpenHandler` per type), `RunScript`,
+  `KillProcess`, `Delay`.
+- **Execution/** - `ProfileRunner` walks actions in order, applies each action's lead `Delay`,
+  dispatches to the handler, honours `FailureBehaviour` (continue / stop / retry with `RetryCount`),
+  and records an `ActionExecution` per action into a `ProfileRun`.
+- **Storage/** - JSON persistence under `%APPDATA%\StartupProfiles` (`profiles.json`, `config.json`,
+  `history.json`) via `ProfileStore` / `ConfigStore` / `HistoryStore`. A fresh install seeds the six
+  default profiles. Enums persist as names; writes are atomic (temp file + move).
+
+Deviations and decisions worth noting:
+
+- `ProfileAction` gained a `RetryCount` field (default 1) to bound `FailureBehaviour.Retry`; it is
+  not in the original field list above.
+- I/O is behind injected seams so the runner is deterministic in tests (CodePrint rule: isolate the
+  clock, delays, and process launching): `IProcessLauncher` / `SystemProcessLauncher`, `IDelayer` /
+  `TaskDelayer`, and `TimeProvider`. Composition happens in `ActionHandlerRegistry.CreateDefault`;
+  the App host will own the real composition root.
+- `ActionType` carries `StartService` and `StartVpn`, but these need Windows APIs and have **no
+  handler yet** (deferred to Milestone 2, `Core/Windows`). A profile that uses one records a clear
+  "no handler" failure rather than throwing.
+- Launch-minimized and launch-as-admin are flags on the launch action (`RunAsAdmin`), not separate
+  action types; "open several URLs" is several `OpenUrl` actions; `wait-for` and `check-running` are
+  deferred.
+- A root `Directory.Build.props` (mirroring `dotnetlib`) enables nullable, implicit usings,
+  `TreatWarningsAsErrors`, and `latest-recommended` analysis; `tests/Directory.Build.props`
+  suppresses CA1707 for `Method_Condition_ExpectedResult` test names.
+
+Not yet started: `Core/Windows`, `Core/Integration`, and everything under `App` (loopback API, tray,
+launcher, config UI). The `%APPDATA%` layout, JSON contracts, and PolyForm/AGENTS baseline documents
+remain open items tracked outside this milestone.
 
 ## Future ideas (not scheduled)
 

@@ -1,0 +1,9 @@
+<Project>
+  <!-- Import root Directory.Build.props so shared settings (EnableWindowsTargeting, etc.) apply here too. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- Test projects suppress CA1707 to allow the Method_Condition_ExpectedResult naming convention. -->
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+</Project>
