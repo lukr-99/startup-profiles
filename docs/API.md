@@ -1,7 +1,6 @@
 # Startup Profiles local API
 
-> Stub. The loopback API is not implemented yet; this file records the intended shape so the
-> `App/Api` layer and the agent skill can be built against it.
+> Implemented (Milestone 3), except `POST /api/register`, which returns 501 until Milestone 5.
 
 The configuration UI and any local agent talk to a **loopback-only** HTTP server bound to
 `127.0.0.1` (mirroring Treeline). When running, the app writes its live URL to a discovery
@@ -12,20 +11,23 @@ file:
 All request/response bodies are JSON. Operation endpoints return
 `{ "ok": bool, "output": string?, "error": string? }`.
 
-## Planned endpoints
+## Endpoints
 
 | Method | Path | Description |
 | --- | --- | --- |
 | GET | `/api/health` | Status, version, data dir, profile count. |
-| GET | `/api/profiles` | All profiles (id, name, icon, action count). |
-| GET | `/api/profiles/{id}` | One full profile including its actions. |
-| POST | `/api/profiles` | Create a profile. |
-| PUT | `/api/profiles/{id}` | Update a profile. |
-| DELETE | `/api/profiles/{id}` | Delete a profile. |
-| POST | `/api/profiles/{id}/run` | Execute a profile now (used by the launcher and tray). |
-| GET | `/api/history` | Recent execution runs and failed actions. |
-| POST | `/api/register` | Handle an integration registration request (see INTEGRATION.md). |
+| GET | `/api/profiles` | All profiles as summaries (id, name, icon, action count). |
+| GET | `/api/profiles/{id}` | One full profile including its actions (404 if unknown). |
+| POST | `/api/profiles` | Create a profile (body is a full profile; 409 if the id exists). |
+| PUT | `/api/profiles/{id}` | Create or replace the profile with this id. |
+| DELETE | `/api/profiles/{id}` | Delete a profile (two-phase confirm, see below). |
+| POST | `/api/profiles/{id}/run` | Execute a profile now, record history, return the run. |
+| GET | `/api/history` | Recent execution runs (`?take=` to limit). |
+| POST | `/api/register` | Integration registration (see INTEGRATION.md). Returns 501 for now. |
 
-Destructive operations follow the Treeline pattern: an explicit UI confirmation plus a
-single-use, server-issued confirmation token, enforced on the API too so agents cannot skip
-the prompt.
+All bodies are JSON, camelCase, with enums as camelCase strings.
+
+Deleting a profile follows a single-use, server-issued confirmation token. `DELETE /api/profiles/{id}`
+without a token returns `{ required: true, confirmToken, summary }`; resubmit as
+`DELETE /api/profiles/{id}?confirmToken=<token>` to actually delete. The token is bound to the exact
+action, single-use, and expires quickly, so an agent cannot skip the prompt.

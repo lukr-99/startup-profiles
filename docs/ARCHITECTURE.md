@@ -1,9 +1,9 @@
 # Architecture
 
-> Design document. Milestones 1-2 are implemented: the Core domain, storage, and execution engine,
-> plus the Windows platform adapters (startup registration, service, VPN). The App host, UI, loopback
-> API, and integration contract are not. See [Implementation status](#implementation-status) for
-> exactly what exists today.
+> Design document. Milestones 1-3 are implemented: the Core domain/storage/execution engine, the
+> Windows platform adapters, and the App host (loopback API + `endpoint.json` discovery + tray). The
+> launcher and config UIs and the integration contract are not. See
+> [Implementation status](#implementation-status) for exactly what exists today.
 
 ## Guiding principle
 
@@ -114,18 +114,19 @@ stays portable-friendly and testable.
 
 ## Implementation status
 
-Milestone 1 implemented `StartupProfiles.Core` (net10.0, no UI/ASP.NET deps); Milestone 2 added
-`StartupProfiles.Windows` (net10.0-windows) with the platform adapters. Both have xUnit projects under
-`tests/` wired into the solution. `App` is still the skeleton host.
+Milestone 1 implemented `StartupProfiles.Core` (net10.0); Milestone 2 added `StartupProfiles.Windows`
+(net10.0-windows) adapters; Milestone 3 built the `StartupProfiles.App` host (loopback API + tray).
+Each has an xUnit project under `tests/` wired into the solution.
 
 Project layout now:
 
 ```
 src/StartupProfiles.Core      net10.0            models, actions, execution, storage (portable seams)
 src/StartupProfiles.Windows   net10.0-windows    Windows adapters behind the Core seams
-src/StartupProfiles.App       net10.0-windows    skeleton host (references Core + Windows)
+src/StartupProfiles.App       net10.0-windows    WinExe host: loopback API + endpoint.json + tray
 tests/StartupProfiles.Core.Tests        net10.0
 tests/StartupProfiles.Windows.Tests     net10.0-windows
+tests/StartupProfiles.App.Tests         net10.0-windows
 ```
 
 Platform code stays out of the portable Core: Core owns the seam interfaces
@@ -160,6 +161,21 @@ Built in StartupProfiles.Windows (adapters):
 - `WindowsRuntime.CreateActionRegistry()` - the Windows composition root wiring the real launcher plus
   service/VPN adapters into `ActionHandlerRegistry.CreateDefault`.
 
+Built in StartupProfiles.App (host):
+
+- **Program** - STA entry point, single-instance mutex. Builds a loopback-only ASP.NET Core host
+  (Kestrel bound to `127.0.0.1`), starts it, writes `endpoint.json`, then runs the tray (or waits
+  headless with `--headless`). Composition root: `ProfileStore` / `ConfigStore` / `HistoryStore`,
+  `WindowsRuntime.CreateActionRegistry()`, `ProfileRunner`, `ProfileExecutor`, `ConfirmationService`.
+- **Api/ApiEndpoints** - the endpoints in [docs/API.md](API.md): health, profile CRUD, run, history.
+  Deleting a profile is two-phase (a `ConfirmationService` token); `POST /api/register` returns 501
+  (Milestone 5).
+- **Tray** - `NotifyIcon` menu listing profiles (click to re-run via `ProfileExecutor`), open data
+  folder, exit.
+- `Core/Confirmations/ConfirmationService` and `Core/Execution/ProfileExecutor` (run-then-record) are
+  in Core so they are unit-testable; the host and tray both use the executor as the single source of
+  truth for running a profile.
+
 Deviations and decisions worth noting:
 
 - `ProfileAction` gained a `RetryCount` field (default 1) to bound `FailureBehaviour.Retry`; it is
@@ -181,10 +197,9 @@ Deviations and decisions worth noting:
   `TreatWarningsAsErrors`, and `latest-recommended` analysis; `tests/Directory.Build.props`
   suppresses CA1707 for `Method_Condition_ExpectedResult` test names.
 
-Not yet started: `Core/Integration`, and everything under `App` (loopback API, tray, launcher, config
-UI). The Windows adapters carry platform tests only for the registry round-trip; service and VPN
-control are thin wrappers over the OS and are exercised manually. The PolyForm/AGENTS baseline
-documents remain open items tracked outside these milestones.
+Not yet started: `Core/Integration`, the launcher (login selector) and config UIs, and the
+`wwwroot` assets. The Windows adapters carry platform tests only for the registry round-trip; service
+and VPN control are thin wrappers over the OS and are exercised manually.
 
 ## Future ideas (not scheduled)
 

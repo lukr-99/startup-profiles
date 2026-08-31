@@ -4,7 +4,7 @@ namespace StartupProfiles.Core.Models;
 /// A named startup context (Work, Dev, Games, ...). A profile is declarative data - an ordered list of
 /// <see cref="ProfileAction"/> the runner executes - not hardcoded logic. Persisted as JSON.
 /// </summary>
-public sealed class Profile
+public sealed record Profile
 {
     public required string Id { get; init; }
     public required string Name { get; init; }

@@ -5,6 +5,7 @@
     <Project Path="src/StartupProfiles.Windows/StartupProfiles.Windows.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/StartupProfiles.App.Tests/StartupProfiles.App.Tests.csproj" />
     <Project Path="tests/StartupProfiles.Core.Tests/StartupProfiles.Core.Tests.csproj" />
     <Project Path="tests/StartupProfiles.Windows.Tests/StartupProfiles.Windows.Tests.csproj" />
   </Folder>
