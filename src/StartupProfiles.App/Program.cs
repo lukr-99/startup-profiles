@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StartupProfiles.App.Api;
 using StartupProfiles.App.Config;
+using StartupProfiles.App.Integration;
 using StartupProfiles.App.Interaction;
 using StartupProfiles.App.Launcher;
 using StartupProfiles.App.Themes;
@@ -24,6 +25,14 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        // A `register` / startupprofiles:// invocation is a one-shot confirmation dialog: it must not take
+        // the single-instance mutex or start the API, so it can run alongside a full instance.
+        if (RegistrationLaunch.IsRegistrationInvocation(args))
+        {
+            RegistrationApp.Run(args);
+            return;
+        }
+
         var options = LaunchOptions.Parse(args);
 
         // Single instance: a second launch just exits.

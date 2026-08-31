@@ -1,9 +1,9 @@
 # Architecture
 
-> Design document. Milestones 1-4 are implemented: the Core domain/storage/execution engine, the
-> Windows platform adapters, the App host (loopback API + `endpoint.json` discovery + tray), and the
-> WPF launcher and config UIs. The integration contract (Milestone 5) is not. See
-> [Implementation status](#implementation-status) for exactly what exists today.
+> Design document. Milestones 1-5 are implemented: the Core domain/storage/execution engine, the
+> Windows platform adapters, the App host (loopback API + `endpoint.json` discovery + tray), the
+> WPF launcher and config UIs, and the integration contract (protocol/CLI/API + trusted confirmation
+> window). See [Implementation status](#implementation-status) for exactly what exists today.
 >
 > Note: this design originally called for a WebView2 UI over the loopback server (the Treeline
 > pattern). Milestone 4 switched to a native **WPF** UI talking to Core in-process; the loopback API
@@ -176,9 +176,9 @@ Built in StartupProfiles.App (host):
   (Kestrel bound to `127.0.0.1`), starts it, writes `endpoint.json`, then runs the tray (or waits
   headless with `--headless`). Composition root: `ProfileStore` / `ConfigStore` / `HistoryStore`,
   `WindowsRuntime.CreateActionRegistry()`, `ProfileRunner`, `ProfileExecutor`, `ConfirmationService`.
-- **Api/ApiEndpoints** - the endpoints in [docs/API.md](API.md): health, profile CRUD, run, history.
-  Deleting a profile is two-phase (a `ConfirmationService` token); `POST /api/register` returns 501
-  (Milestone 5).
+- **Api/ApiEndpoints** - the endpoints in [docs/API.md](API.md): health, profile CRUD, run, history,
+  and register. Deleting a profile and registering an app are both two-phase (a `ConfirmationService`
+  token) so nothing destructive or additive happens without an explicit confirm.
 - **Tray** - `NotifyIcon` menu listing profiles (click to re-run via `ProfileExecutor`), open data
   folder, exit.
 - `Core/Confirmations/ConfirmationService` and `Core/Execution/ProfileExecutor` (run-then-record) are
@@ -226,10 +226,26 @@ Deviations and decisions worth noting:
   the WPF markup-compile helper, which is not installed here; roll-forward still runs it on newer
   patches. Revisit once the box has a matching runtime.
 
-Not yet started: `Core/Integration` and the `startupprofiles://` protocol + CLI (Milestone 5). The
-Windows adapters carry platform tests only for the registry round-trip; service and VPN control are
-thin wrappers over the OS and are exercised manually. WPF windows are covered by view-model tests, not
-UI automation.
+Built in Core/Integration and StartupProfiles.App/Integration (Milestone 5):
+
+- **Core/Integration** - `RegistrationRequest`, `RegistrationRequestParser` (one field mapping shared
+  by the protocol URI and the CLI form), and `IProfileRegistrar` / `ProfileRegistrar` (appends a launch
+  action to the chosen profiles, idempotent per target, never creating profiles or touching unlisted
+  ones). `RegistrationOutcome` reports what changed.
+- **App/Integration** - `RegistrationLaunch` recognises and parses a `register` invocation;
+  `RegistrationApp` runs the one-shot flow (no mutex, no API host, no tray) and shows the trusted
+  `RegistrationWindow` / `RegistrationViewModel`; a `suggestedProfile` only pre-ticks a hint and never
+  `Everything`. `RunningInstance` + `ApiProfileRegistrar` route the write through a live host's loopback
+  API so the running app stays the single writer of `profiles.json`; a direct store write is used only
+  when no instance is running.
+- **Api** - `POST /api/register` applies a request via `IProfileRegistrar` behind the same two-phase
+  confirmation token as delete.
+
+Still open on the contract: registering the `startupprofiles://` scheme with Windows (installer
+milestone), and `supportsMinimized` is carried as metadata only (launch-minimized is not yet an action
+field). The Windows adapters carry platform tests only for the registry round-trip; service and VPN
+control are thin wrappers over the OS and are exercised manually. WPF windows are covered by view-model
+tests, not UI automation.
 
 ## Future ideas (not scheduled)
 

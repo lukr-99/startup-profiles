@@ -1,7 +1,9 @@
 # Startup Profiles integration contract
 
-> Design document. The contract shape is stable; the transport and implementation are not
-> built yet.
+> Implemented in Milestone 5. Both transports (protocol URI and CLI), the loopback API path, and
+> the trusted confirmation window exist; see [Implementation](#implementation). Registering the
+> `startupprofiles://` scheme with Windows is the installer's job (a later milestone), so today the
+> protocol form is exercised by passing the URI to `StartupProfiles.exe` directly.
 
 Startup Profiles exposes a small **public integration contract** so other applications can
 *request* to be added to a startup profile. This is aimed at CodePrint-convention Windows
@@ -80,6 +82,33 @@ When designing a CodePrint Windows application, consider Startup Profiles integr
   under **Settings -> Startup -> Add to Startup Profiles**, or offered once during setup.
 - The app must work completely normally when Startup Profiles is **not** installed.
 - Integration is therefore an **optional capability, never a hard dependency**.
+
+## Implementation
+
+The contract is realised in two layers:
+
+- **`StartupProfiles.Core/Integration`** (portable): `RegistrationRequest` is the metadata an app
+  supplies; `RegistrationRequestParser` parses both transports through one shared field mapping and
+  validation; `ProfileRegistrar` applies an approved request by appending a launch action to the
+  chosen profiles (idempotent per target, never creating profiles or touching unlisted ones).
+- **`StartupProfiles.App/Integration`** (host): the entry points and the trusted window.
+
+Three ways to reach it:
+
+1. **Protocol** - `StartupProfiles.exe "startupprofiles://register?appId=...&name=...&target=..."`.
+   Registering the scheme with Windows is deferred to the installer; until then, invoke the exe with
+   the URI directly.
+2. **CLI** - `StartupProfiles.exe register --app-id ... --name ... --target ... [--args ...]
+   [--publisher ...] [--suggested-profile Dev] [--supports-minimized]`. A value that itself starts
+   with `--` (launch arguments) can use the `--args=--flag` form.
+3. **Loopback API** - `POST /api/register` for local agents (see [API.md](API.md)).
+
+The protocol and CLI forms open a **Startup Profiles-owned** confirmation window: it shows the
+requesting app's name, publisher, and target, and a checklist of profiles. A `suggestedProfile` only
+pre-ticks that one profile as a hint - never `Everything` - and the user must click **Add**. Because a
+running instance caches profiles in memory, a one-shot `register` process routes its write through the
+running instance's loopback API when one is live (keeping a single writer of `profiles.json`), and
+writes directly only when no instance is running.
 
 ## Future contract expansion
 

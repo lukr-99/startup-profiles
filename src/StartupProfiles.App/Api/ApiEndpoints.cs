@@ -90,7 +90,7 @@ public static class ApiEndpoints
                     $"Add '{body.Name}' to: {string.Join(", ", profileIds)}."));
 
             var outcome = registrar.Apply(body.ToRequest(), profileIds);
-            return Results.Ok(new OperationResult(true, SummarizeRegistration(outcome)));
+            return Results.Ok(new RegistrationResponse(true, outcome, SummarizeRegistration(outcome)));
         });
     }
 
