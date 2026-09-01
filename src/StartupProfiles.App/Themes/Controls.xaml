@@ -320,6 +320,7 @@
               <Setter Property="Height" Value="11" />
               <Setter Property="MinHeight" Value="11" />
               <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
+              <Setter TargetName="PART_Track" Property="Orientation" Value="Horizontal" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -370,5 +371,75 @@
         <Setter Property="Foreground" Value="{DynamicResource App.OnSelection}" />
       </Trigger>
     </Style.Triggers>
+  </Style>
+
+  <!-- DataGrid column element/editor styles (assigned per column so grid editors are themed, not white). -->
+  <Style x:Key="App.GridTextDisplay" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource App.Text}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="8,0" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+
+  <Style x:Key="App.GridTextEditor" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+    <Setter Property="Margin" Value="2" />
+    <Setter Property="Padding" Value="6,3" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style x:Key="App.GridComboEditor" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+    <Setter Property="Margin" Value="2" />
+    <Setter Property="Height" Value="26" />
+  </Style>
+
+  <Style x:Key="App.GridCheckBox" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- ===== Tabs ===== -->
+  <Style TargetType="TabControl">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource App.Text}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabControl">
+          <DockPanel>
+            <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource App.Border}" BorderThickness="0,0,0,1">
+              <TabPanel IsItemsHost="True" Background="Transparent" Margin="10,6,10,0" />
+            </Border>
+            <ContentPresenter ContentSource="SelectedContent" />
+          </DockPanel>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style TargetType="TabItem">
+    <Setter Property="Foreground" Value="{DynamicResource App.Muted}" />
+    <Setter Property="Padding" Value="14,8" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabItem">
+          <Border x:Name="bd" Margin="0,0,4,0" Padding="{TemplateBinding Padding}"
+                  Background="Transparent" BorderBrush="Transparent" BorderThickness="0,0,0,2"
+                  TextElement.Foreground="{TemplateBinding Foreground}">
+            <ContentPresenter ContentSource="Header" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="bd" Property="TextElement.Foreground" Value="{DynamicResource App.Text}" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource App.Accent}" />
+              <Setter Property="Foreground" Value="{DynamicResource App.Text}" />
+              <Setter Property="FontWeight" Value="SemiBold" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
   </Style>
 </ResourceDictionary>

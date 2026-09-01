@@ -38,6 +38,12 @@ internal static class Program
             return;
         }
 
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            if (e.ExceptionObject is Exception ex) Diagnostics.CrashLog.Write("AppDomain", ex);
+            else Diagnostics.CrashLog.Write("AppDomain", e.ExceptionObject?.ToString() ?? "unknown");
+        };
+
         var options = LaunchOptions.Parse(args);
 
         // Single instance: a second launch just exits.
@@ -70,6 +76,11 @@ internal static class Program
         var prompts = new UserPrompts();
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        app.DispatcherUnhandledException += (_, e) =>
+        {
+            Diagnostics.CrashLog.Write("Dispatcher", e.Exception);
+            e.Handled = true; // Keep the app alive; the exception is logged to error.log for diagnosis.
+        };
         var theme = new ThemeManager(app);
         theme.Apply(ThemeManager.Parse(config.GetValue("theme")));
 

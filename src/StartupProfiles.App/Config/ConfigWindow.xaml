@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:config="clr-namespace:StartupProfiles.App.Config"
         xmlns:ui="clr-namespace:StartupProfiles.App.Ui"
-        Title="Startup Profiles - Configuration" Height="640" Width="940"
+        Title="Startup Profiles - Configuration" Height="640" Width="960"
+        MinHeight="480" MinWidth="820"
         WindowStartupLocation="CenterScreen" FontFamily="Segoe UI"
         Background="{DynamicResource App.Background}"
         TextElement.Foreground="{DynamicResource App.Text}">
@@ -11,112 +12,142 @@
     <ui:NullToVisibilityConverter x:Key="NullToVis" />
   </Window.Resources>
 
-  <Grid>
-    <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="240" />
-      <ColumnDefinition Width="*" />
-    </Grid.ColumnDefinitions>
+  <TabControl>
+    <!-- ============ Profiles ============ -->
+    <TabItem Header="Profiles">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="240" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-    <!-- Sidebar -->
-    <DockPanel Grid.Column="0" Background="{DynamicResource App.Surface}">
-      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="12,10">
-        <TextBlock Text="Profiles" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-        <Button Content="+ New" Command="{Binding NewCommand}" Margin="12,0,0,0" Padding="8,3" />
-      </StackPanel>
-      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="12,8">
-        <Button Content="Export" Command="{Binding ExportCommand}" Margin="0,0,8,0" Padding="8,3" />
-        <Button Content="Import" Command="{Binding ImportCommand}" Padding="8,3" />
-      </StackPanel>
-      <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding Selected}"
-               Background="Transparent" BorderThickness="0" Margin="6">
-        <ListBox.ItemTemplate>
-          <DataTemplate>
-            <DockPanel>
-              <TextBlock Text="{Binding ActionCount}" DockPanel.Dock="Right"
-                         Foreground="{DynamicResource App.Muted}" />
-              <TextBlock Text="{Binding Name}" />
-            </DockPanel>
-          </DataTemplate>
-        </ListBox.ItemTemplate>
-      </ListBox>
-    </DockPanel>
+        <!-- Sidebar -->
+        <DockPanel Grid.Column="0" Background="{DynamicResource App.Surface}">
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="12,10">
+            <TextBlock Text="Profiles" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Button Content="+ New" Command="{Binding NewCommand}" Margin="12,0,0,0" Padding="8,3" />
+          </StackPanel>
+          <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding Selected}"
+                   Background="Transparent" BorderThickness="0" Margin="6">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <DockPanel>
+                  <TextBlock Text="{Binding ActionCount}" DockPanel.Dock="Right"
+                             Foreground="{DynamicResource App.Muted}" />
+                  <TextBlock Text="{Binding Name}" />
+                </DockPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
 
-    <!-- Empty state -->
-    <TextBlock Grid.Column="1" Text="Select a profile, or create one."
-               Foreground="{DynamicResource App.Muted}"
-               HorizontalAlignment="Center" VerticalAlignment="Center"
-               Visibility="{Binding Editor, Converter={StaticResource NullToVis}, ConverterParameter=invert}" />
+        <!-- Empty state -->
+        <TextBlock Grid.Column="1" Text="Select a profile, or create one."
+                   Foreground="{DynamicResource App.Muted}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Visibility="{Binding Editor, Converter={StaticResource NullToVis}, ConverterParameter=invert}" />
 
-    <!-- Editor -->
-    <Grid Grid.Column="1" Margin="20"
-          Visibility="{Binding Editor, Converter={StaticResource NullToVis}}">
-      <Grid.RowDefinitions>
-        <RowDefinition Height="Auto" />
-        <RowDefinition Height="Auto" />
-        <RowDefinition Height="*" />
-        <RowDefinition Height="Auto" />
-        <RowDefinition Height="Auto" />
-      </Grid.RowDefinitions>
+        <!-- Editor -->
+        <Grid Grid.Column="1" Margin="20"
+              Visibility="{Binding Editor, Converter={StaticResource NullToVis}}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
 
-      <WrapPanel Grid.Row="0">
-        <StackPanel Margin="0,0,16,8">
-          <TextBlock Text="Name" Foreground="{DynamicResource App.Muted}" />
-          <TextBox Text="{Binding Editor.Name, UpdateSourceTrigger=PropertyChanged}" Width="200" />
+          <WrapPanel Grid.Row="0">
+            <StackPanel Margin="0,0,16,8">
+              <TextBlock Text="Name" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
+              <TextBox Text="{Binding Editor.Name, UpdateSourceTrigger=PropertyChanged}"
+                       Width="220" Height="30" VerticalContentAlignment="Center" />
+            </StackPanel>
+            <StackPanel Margin="0,0,16,8">
+              <TextBlock Text="Icon" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
+              <TextBox Text="{Binding Editor.Icon, UpdateSourceTrigger=PropertyChanged}"
+                       Width="120" Height="30" VerticalContentAlignment="Center" />
+            </StackPanel>
+            <StackPanel Margin="0,0,0,8">
+              <TextBlock Text="Startup" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
+              <ComboBox ItemsSource="{x:Static config:ProfileEditor.StartupBehaviours}"
+                        SelectedItem="{Binding Editor.StartupBehaviour}" Width="220" Height="30" />
+            </StackPanel>
+          </WrapPanel>
+
+          <TextBlock Grid.Row="1" Text="Actions" FontWeight="SemiBold" Margin="0,10,0,6" />
+
+          <DataGrid Grid.Row="2" ItemsSource="{Binding Editor.Actions}" SelectedItem="{Binding SelectedAction}"
+                    AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column"
+                    CanUserSortColumns="False" CanUserReorderColumns="False">
+            <DataGrid.Columns>
+              <DataGridComboBoxColumn Header="Type" Width="122"
+                                      ItemsSource="{x:Static config:ActionEditor.ActionTypes}"
+                                      SelectedItemBinding="{Binding Type}"
+                                      EditingElementStyle="{StaticResource App.GridComboEditor}" />
+              <DataGridTextColumn Header="Target" Width="*" Binding="{Binding Target}"
+                                  ElementStyle="{StaticResource App.GridTextDisplay}"
+                                  EditingElementStyle="{StaticResource App.GridTextEditor}" />
+              <DataGridTextColumn Header="Arguments" Width="*" Binding="{Binding Arguments}"
+                                  ElementStyle="{StaticResource App.GridTextDisplay}"
+                                  EditingElementStyle="{StaticResource App.GridTextEditor}" />
+              <DataGridTextColumn Header="Delay (s)" Width="72" Binding="{Binding DelaySeconds}"
+                                  ElementStyle="{StaticResource App.GridTextDisplay}"
+                                  EditingElementStyle="{StaticResource App.GridTextEditor}" />
+              <DataGridComboBoxColumn Header="On failure" Width="104"
+                                      ItemsSource="{x:Static config:ActionEditor.FailureBehaviours}"
+                                      SelectedItemBinding="{Binding FailureBehaviour}"
+                                      EditingElementStyle="{StaticResource App.GridComboEditor}" />
+              <DataGridTextColumn Header="Retries" Width="64" Binding="{Binding RetryCount}"
+                                  ElementStyle="{StaticResource App.GridTextDisplay}"
+                                  EditingElementStyle="{StaticResource App.GridTextEditor}" />
+              <DataGridCheckBoxColumn Header="Admin" Width="60" Binding="{Binding RunAsAdmin}"
+                                      ElementStyle="{StaticResource App.GridCheckBox}"
+                                      EditingElementStyle="{StaticResource App.GridCheckBox}" />
+            </DataGrid.Columns>
+          </DataGrid>
+
+          <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,0">
+            <Button Content="+ Add" Command="{Binding AddActionCommand}" Padding="10,4" Margin="0,0,8,0" />
+            <Button Content="Remove" Command="{Binding RemoveActionCommand}" Padding="10,4" Margin="0,0,8,0" />
+            <Button Content="Move up" Command="{Binding MoveUpCommand}" Padding="10,4" Margin="0,0,8,0" />
+            <Button Content="Move down" Command="{Binding MoveDownCommand}" Padding="10,4" />
+          </StackPanel>
+
+          <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,16,0,0">
+            <Button Content="Save" Command="{Binding SaveCommand}" Style="{StaticResource App.AccentButton}"
+                    Margin="0,0,8,0" />
+            <Button Content="Run now" Command="{Binding RunCommand}" Padding="12,7" Margin="0,0,8,0" />
+            <Button Content="Delete" Command="{Binding DeleteCommand}" Padding="12,7"
+                    Foreground="{DynamicResource App.Danger}" />
+            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource App.Muted}"
+                       VerticalAlignment="Center" Margin="12,0,0,0" />
+          </StackPanel>
+        </Grid>
+      </Grid>
+    </TabItem>
+
+    <!-- ============ Settings ============ -->
+    <TabItem Header="Settings">
+      <StackPanel Margin="24" MaxWidth="560" HorizontalAlignment="Left">
+        <TextBlock Text="Appearance" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
+        <TextBlock Text="Theme" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
+        <ComboBox x:Name="ThemeBox" Width="200" HorizontalAlignment="Left" SelectionChanged="OnThemeChanged">
+          <ComboBoxItem Content="System" />
+          <ComboBoxItem Content="Light" />
+          <ComboBoxItem Content="Dark" />
+        </ComboBox>
+
+        <TextBlock Text="Profiles data" FontSize="15" FontWeight="SemiBold" Margin="0,26,0,8" />
+        <TextBlock Text="Export all profiles to a JSON file, or import them from one."
+                   Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,0,0,10" />
+        <StackPanel Orientation="Horizontal">
+          <Button Content="Export..." Command="{Binding ExportCommand}" Padding="12,6" Margin="0,0,8,0" />
+          <Button Content="Import..." Command="{Binding ImportCommand}" Padding="12,6" />
         </StackPanel>
-        <StackPanel Margin="0,0,16,8">
-          <TextBlock Text="Icon" Foreground="{DynamicResource App.Muted}" />
-          <TextBox Text="{Binding Editor.Icon, UpdateSourceTrigger=PropertyChanged}" Width="120" />
-        </StackPanel>
-        <StackPanel Margin="0,0,16,8">
-          <TextBlock Text="Startup" Foreground="{DynamicResource App.Muted}" />
-          <ComboBox ItemsSource="{x:Static config:ProfileEditor.StartupBehaviours}"
-                    SelectedItem="{Binding Editor.StartupBehaviour}" Width="200" />
-        </StackPanel>
-        <StackPanel Margin="0,0,0,8">
-          <TextBlock Text="Theme" Foreground="{DynamicResource App.Muted}" />
-          <ComboBox x:Name="ThemeBox" Width="120" SelectionChanged="OnThemeChanged">
-            <ComboBoxItem Content="System" />
-            <ComboBoxItem Content="Light" />
-            <ComboBoxItem Content="Dark" />
-          </ComboBox>
-        </StackPanel>
-      </WrapPanel>
-
-      <TextBlock Grid.Row="1" Text="Actions" FontWeight="SemiBold" Margin="0,10,0,6" />
-
-      <DataGrid Grid.Row="2" ItemsSource="{Binding Editor.Actions}" SelectedItem="{Binding SelectedAction}"
-                AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column">
-        <DataGrid.Columns>
-          <DataGridComboBoxColumn Header="Type" Width="130"
-                                  ItemsSource="{x:Static config:ActionEditor.ActionTypes}"
-                                  SelectedItemBinding="{Binding Type}" />
-          <DataGridTextColumn Header="Target" Width="*" Binding="{Binding Target}" />
-          <DataGridTextColumn Header="Arguments" Width="*" Binding="{Binding Arguments}" />
-          <DataGridTextColumn Header="Delay (s)" Width="70" Binding="{Binding DelaySeconds}" />
-          <DataGridComboBoxColumn Header="On failure" Width="100"
-                                  ItemsSource="{x:Static config:ActionEditor.FailureBehaviours}"
-                                  SelectedItemBinding="{Binding FailureBehaviour}" />
-          <DataGridTextColumn Header="Retries" Width="60" Binding="{Binding RetryCount}" />
-          <DataGridCheckBoxColumn Header="Admin" Width="55" Binding="{Binding RunAsAdmin}" />
-        </DataGrid.Columns>
-      </DataGrid>
-
-      <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,0">
-        <Button Content="+ Add" Command="{Binding AddActionCommand}" Padding="10,4" Margin="0,0,8,0" />
-        <Button Content="Remove" Command="{Binding RemoveActionCommand}" Padding="10,4" Margin="0,0,8,0" />
-        <Button Content="Up" Command="{Binding MoveUpCommand}" Padding="10,4" Margin="0,0,8,0" />
-        <Button Content="Down" Command="{Binding MoveDownCommand}" Padding="10,4" />
+        <TextBlock Text="{Binding Status}" Foreground="{DynamicResource App.Muted}" Margin="0,12,0,0" />
       </StackPanel>
-
-      <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,16,0,0">
-        <Button Content="Save" Command="{Binding SaveCommand}" Style="{StaticResource App.AccentButton}"
-                Margin="0,0,8,0" />
-        <Button Content="Run now" Command="{Binding RunCommand}" Padding="12,7" Margin="0,0,8,0" />
-        <Button Content="Delete" Command="{Binding DeleteCommand}" Padding="12,7"
-                Foreground="{DynamicResource App.Danger}" />
-        <TextBlock Text="{Binding Status}" Foreground="{DynamicResource App.Muted}"
-                   VerticalAlignment="Center" Margin="12,0,0,0" />
-      </StackPanel>
-    </Grid>
-  </Grid>
+    </TabItem>
+  </TabControl>
 </Window>

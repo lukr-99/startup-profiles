@@ -29,6 +29,11 @@ internal static class RegistrationApp
         }
 
         var app = new Application { ShutdownMode = ShutdownMode.OnLastWindowClose };
+        app.DispatcherUnhandledException += (_, e) =>
+        {
+            Diagnostics.CrashLog.Write("Dispatcher(register)", e.Exception);
+            e.Handled = true;
+        };
         new ThemeManager(app).Apply(ThemeManager.Parse(new ConfigStore().GetValue("theme")));
 
         var viewModel = new RegistrationViewModel(request, choices, registrar);
