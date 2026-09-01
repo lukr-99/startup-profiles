@@ -56,6 +56,45 @@ public sealed class UserPrompts : IUserPrompts
         return dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(box.Text) ? box.Text.Trim() : null;
     }
 
+    private static readonly string[] Emojis =
+    [
+        "💼", "🏢", "💻", "⌨️", "🖥️", "🐛", "🧩", "🎓",
+        "📚", "✏️", "📝", "🎮", "🕹️", "🎯", "🎲", "🎧",
+        "🎵", "🎬", "📺", "🌐", "📧", "💬", "📞", "📅",
+        "📁", "🗂️", "🔧", "⚙️", "🚀", "⭐", "✨", "🔥",
+        "💡", "🏠", "☕", "🌙", "🎨", "📷", "💰", "📊",
+        "🔒", "🛡️", "🩺", "🏋️", "🍕", "🧠", "✅", "🌟",
+    ];
+
+    public string? PickIcon(string? current)
+    {
+        string? picked = null;
+        Window dialog = null!;
+
+        var grid = new WrapPanel { MaxWidth = 8 * 52, Margin = new Thickness(0, 10, 0, 0) };
+        var emojiStyle = Application.Current.TryFindResource("App.EmojiButton") as Style;
+        foreach (var emoji in Emojis)
+        {
+            var button = new Button { Content = emoji };
+            if (emojiStyle is not null) button.Style = emojiStyle;
+            var captured = emoji;
+            button.Click += (_, _) => { picked = captured; dialog.DialogResult = true; };
+            grid.Children.Add(button);
+        }
+
+        var panel = NewPanel();
+        panel.Children.Add(new TextBlock { Text = "Choose an icon", FontWeight = FontWeights.SemiBold, FontSize = 15 });
+        panel.Children.Add(grid);
+
+        var clear = SecondaryButton("Clear icon", isCancel: false);
+        clear.Click += (_, _) => { picked = ""; dialog.DialogResult = true; };
+        var cancel = SecondaryButton("Cancel", isCancel: true);
+        panel.Children.Add(ButtonRow(clear, cancel));
+
+        dialog = CreateDialog("Choose icon", panel);
+        return dialog.ShowDialog() == true ? picked : null;
+    }
+
     public string? PickSavePath(string suggestedFileName)
     {
         var dialog = new SaveFileDialog { FileName = suggestedFileName, Filter = "JSON (*.json)|*.json" };

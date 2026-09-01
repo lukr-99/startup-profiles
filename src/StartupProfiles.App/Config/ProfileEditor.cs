@@ -13,7 +13,16 @@ public sealed class ProfileEditor : ObservableObject
 
     public required string Id { get; init; }
     public string Name { get => _name; set => SetProperty(ref _name, value); }
-    public string Icon { get => _icon; set => SetProperty(ref _icon, value); }
+
+    public string Icon
+    {
+        get => _icon;
+        set { if (SetProperty(ref _icon, value)) OnPropertyChanged(nameof(IconDisplay)); }
+    }
+
+    /// <summary>The emoji to show on the picker button, or a prompt when none is set.</summary>
+    public string IconDisplay => string.IsNullOrWhiteSpace(Icon) ? "Choose…" : Icon;
+
     public StartupBehaviour StartupBehaviour { get => _startupBehaviour; set => SetProperty(ref _startupBehaviour, value); }
     public ObservableCollection<ActionEditor> Actions { get; } = [];
 

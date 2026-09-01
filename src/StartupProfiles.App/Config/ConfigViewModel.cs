@@ -28,6 +28,7 @@ public sealed class ConfigViewModel : ObservableObject
     private readonly RelayCommand _saveCommand;
     private readonly RelayCommand _deleteCommand;
     private readonly RelayCommand _runCommand;
+    private readonly RelayCommand _pickIconCommand;
     private readonly RelayCommand _addActionCommand;
     private readonly RelayCommand _removeActionCommand;
     private readonly RelayCommand _moveUpCommand;
@@ -50,6 +51,7 @@ public sealed class ConfigViewModel : ObservableObject
         _saveCommand = new RelayCommand(_ => Save(), _ => Editor is not null);
         _deleteCommand = new RelayCommand(_ => Delete(), _ => Editor is not null);
         _runCommand = new RelayCommand(_ => _ = RunAsync(), _ => Editor is not null);
+        _pickIconCommand = new RelayCommand(_ => PickIcon(), _ => Editor is not null);
         _addActionCommand = new RelayCommand(_ => AddAction(), _ => Editor is not null);
         _removeActionCommand = new RelayCommand(_ => RemoveAction(), _ => SelectedAction is not null);
         _moveUpCommand = new RelayCommand(_ => Move(-1), _ => SelectedAction is not null);
@@ -76,6 +78,7 @@ public sealed class ConfigViewModel : ObservableObject
             _saveCommand.NotifyCanExecuteChanged();
             _deleteCommand.NotifyCanExecuteChanged();
             _runCommand.NotifyCanExecuteChanged();
+            _pickIconCommand.NotifyCanExecuteChanged();
             _addActionCommand.NotifyCanExecuteChanged();
         }
     }
@@ -100,6 +103,7 @@ public sealed class ConfigViewModel : ObservableObject
     public ICommand SaveCommand => _saveCommand;
     public ICommand DeleteCommand => _deleteCommand;
     public ICommand RunCommand => _runCommand;
+    public ICommand PickIconCommand => _pickIconCommand;
     public ICommand AddActionCommand => _addActionCommand;
     public ICommand RemoveActionCommand => _removeActionCommand;
     public ICommand MoveUpCommand => _moveUpCommand;
@@ -161,6 +165,13 @@ public sealed class ConfigViewModel : ObservableObject
         _profiles.Remove(Editor.Id);
         if (Profiles.FirstOrDefault(p => p.Id == Editor.Id) is { } item) Profiles.Remove(item);
         Selected = null;
+    }
+
+    private void PickIcon()
+    {
+        if (Editor is null) return;
+        var picked = _prompts.PickIcon(Editor.Icon);
+        if (picked is not null) Editor.Icon = picked; // empty string clears the icon; null means cancelled
     }
 
     private async Task RunAsync()

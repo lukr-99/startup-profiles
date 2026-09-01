@@ -67,8 +67,8 @@
             </StackPanel>
             <StackPanel Margin="0,0,16,8">
               <TextBlock Text="Icon" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
-              <TextBox Text="{Binding Editor.Icon, UpdateSourceTrigger=PropertyChanged}"
-                       Width="120" Height="32" VerticalContentAlignment="Center" />
+              <Button Command="{Binding PickIconCommand}" Content="{Binding Editor.IconDisplay}"
+                      FontFamily="Segoe UI Emoji" FontSize="16" Width="120" Height="32" />
             </StackPanel>
             <StackPanel Margin="0,0,0,8">
               <TextBlock Text="Startup" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />

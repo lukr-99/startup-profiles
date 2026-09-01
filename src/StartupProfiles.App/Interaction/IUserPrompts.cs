@@ -12,6 +12,12 @@ public interface IUserPrompts
     /// <summary>Prompts for a line of text; null if cancelled.</summary>
     string? AskText(string title, string prompt);
 
+    /// <summary>
+    /// Lets the user pick an emoji icon (or clear it). Returns the chosen emoji, an empty string to
+    /// clear, or null if cancelled (leave unchanged). <paramref name="current"/> is pre-highlighted.
+    /// </summary>
+    string? PickIcon(string? current);
+
     void Info(string message);
 
     /// <summary>Chooses a path to save to; null if cancelled.</summary>

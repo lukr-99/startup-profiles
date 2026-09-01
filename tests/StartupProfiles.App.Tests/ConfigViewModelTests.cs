@@ -65,6 +65,33 @@ public sealed class ConfigViewModelTests
     }
 
     [Fact]
+    public void PickIcon_WhenChosen_SetsEditorIcon()
+    {
+        using var services = AppTestServices.Create();
+        var prompts = new FakeUserPrompts { IconResult = "🎯" };
+        var viewModel = new ConfigViewModel(services.Profiles, services.Executor, prompts);
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "dev");
+
+        viewModel.PickIconCommand.Execute(null);
+
+        Assert.Equal("🎯", viewModel.Editor!.Icon);
+        Assert.Equal("🎯", viewModel.Editor.IconDisplay);
+    }
+
+    [Fact]
+    public void PickIcon_WhenCancelled_LeavesIconUnchanged()
+    {
+        using var services = AppTestServices.Create();
+        var prompts = new FakeUserPrompts { IconResult = null };
+        var viewModel = new ConfigViewModel(services.Profiles, services.Executor, prompts);
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "dev");
+
+        viewModel.PickIconCommand.Execute(null);
+
+        Assert.Equal("💻", viewModel.Editor!.Icon);
+    }
+
+    [Fact]
     public void AddAction_ThenMoveUp_ReordersSelectedAction()
     {
         using var services = AppTestServices.Create();

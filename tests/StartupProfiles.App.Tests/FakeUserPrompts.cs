@@ -7,12 +7,14 @@ internal sealed class FakeUserPrompts : IUserPrompts
 {
     public bool ConfirmResult { get; set; } = true;
     public string? TextResult { get; set; }
+    public string? IconResult { get; set; }
     public string? SavePathResult { get; set; }
     public string? OpenPathResult { get; set; }
     public List<string> Infos { get; } = [];
 
     public bool Confirm(string message) => ConfirmResult;
     public string? AskText(string title, string prompt) => TextResult;
+    public string? PickIcon(string? current) => IconResult;
     public void Info(string message) => Infos.Add(message);
     public string? PickSavePath(string suggestedFileName) => SavePathResult;
     public string? PickOpenPath() => OpenPathResult;

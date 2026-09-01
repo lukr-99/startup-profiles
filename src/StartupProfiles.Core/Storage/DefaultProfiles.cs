@@ -7,18 +7,18 @@ public static class DefaultProfiles
 {
     public static IReadOnlyList<Profile> Create() =>
     [
-        Named("work", "Work"),
-        Named("dev", "Dev"),
-        Named("school", "School"),
-        Named("games", "Games"),
-        Named("chill", "Chill"),
-        Named("everything", "Everything"),
+        Named("work", "Work", "💼"),
+        Named("dev", "Dev", "💻"),
+        Named("school", "School", "🎓"),
+        Named("games", "Games", "🎮"),
+        Named("chill", "Chill", "🎧"),
+        Named("everything", "Everything", "✨"),
     ];
 
-    private static Profile Named(string id, string name) => new()
+    private static Profile Named(string id, string name, string icon) => new()
     {
         Id = id,
         Name = name,
-        Icon = id,
+        Icon = icon,
     };
 }
