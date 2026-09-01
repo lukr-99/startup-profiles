@@ -12,6 +12,7 @@ public sealed class LauncherViewModel : ObservableObject
     private readonly IProfileStore _profiles;
     private readonly ProfileExecutor _executor;
     private string? _status;
+    private bool _showLabels = true;
 
     public LauncherViewModel(IProfileStore profiles, ProfileExecutor executor)
     {
@@ -32,6 +33,9 @@ public sealed class LauncherViewModel : ObservableObject
     public ICommand CloseCommand { get; }
 
     public string? Status { get => _status; private set => SetProperty(ref _status, value); }
+
+    /// <summary>Whether profile names are shown; the window hides them when it gets too narrow (icons only).</summary>
+    public bool ShowLabels { get => _showLabels; set => SetProperty(ref _showLabels, value); }
 
     public event Action? CloseRequested;
     public event Action? OpenConfigRequested;

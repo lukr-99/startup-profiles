@@ -94,10 +94,13 @@ internal static class Program
             new ConfigWindow(new ConfigViewModel(profiles, executor, prompts),
                 ThemeManager.Parse(config.GetValue("theme")), ApplyTheme).Show();
 
-        using var tray = new TrayIcon(profiles, executor, OpenConfig, app.Shutdown);
+        void OpenLauncher() =>
+            new LauncherWindow(new LauncherViewModel(profiles, executor), OpenConfig).Show();
+
+        using var tray = new TrayIcon(profiles, executor, OpenConfig, OpenLauncher, app.Shutdown);
 
         // Show the login selector at startup; the app then lives in the tray.
-        new LauncherWindow(new LauncherViewModel(profiles, executor), OpenConfig).Show();
+        OpenLauncher();
 
         app.Run();
     }

@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Add to Startup Profiles" Height="520" Width="480"
         WindowStartupLocation="CenterScreen" ResizeMode="NoResize" FontFamily="Segoe UI"
+        Icon="pack://application:,,,/StartupProfiles;component/Assets/app.ico"
         Background="{DynamicResource App.Background}"
         TextElement.Foreground="{DynamicResource App.Text}">
   <Grid Margin="24">

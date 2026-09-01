@@ -10,6 +10,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>StartupProfiles</AssemblyName>
     <RootNamespace>StartupProfiles.App</RootNamespace>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <!-- Pin to the installed shared runtime; the SDK otherwise resolves 10.0.9 for the WPF
          markup-compile helper, which is not installed here. Roll-forward still runs it on newer patches. -->
     <RuntimeFrameworkVersion>10.0.7</RuntimeFrameworkVersion>
@@ -26,6 +27,11 @@
        global using so WPF types (Application, MessageBox, Button, ...) resolve unambiguously. -->
   <ItemGroup>
     <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Also embedded as a WPF resource so windows can set Icon via a pack URI. -->
+    <Resource Include="Assets\app.ico" />
   </ItemGroup>
 
   <ItemGroup>
