@@ -4,7 +4,7 @@ Snapshot of Windows Startup Profiles as of 2026-08-31. For the full design see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); for conventions see [AGENTS.md](AGENTS.md) and
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Status: Milestones 1-5, installer, release CI done; UI polish + conditions next
+## Status: Milestones 1-5, installer, release CI, UI polish done; conditions next
 
 The app runs today: launch it and a WPF login selector appears; pick a context and it launches that
 profile's actions, then lives in the tray. Profiles are editable in the config window. A loopback HTTP
@@ -95,13 +95,21 @@ generated notes. Mirrors GameScout's workflow, minus the Inno installer (this ap
 Not yet (parity with GameScout, if wanted later): an Inno Setup installer artifact and an in-app update
 checker that reads the latest GitHub Release.
 
+## UI / visual polish (done)
+
+`Themes/Controls.xaml` holds a shared implicit-style dictionary (buttons, text boxes, combo boxes,
+list boxes, checkboxes, DataGrid, tabs, thin scrollbars) that both themes merge and re-color live via
+`DynamicResource`. Native window title bars follow the theme (DWM immersive dark mode); the WinForms
+tray menu is themed via a custom renderer. The app has an icon (`Assets/app.ico`) on the exe, title
+bars, and tray. The config window is split into **Profiles** and **Settings** tabs (theme picker,
+export/import, a disabled "Sync - coming soon" placeholder, and version). The launcher hides profile
+labels below a width threshold (icons-only) instead of clipping text. Profiles have **emoji icons**
+chosen from a picker (`IUserPrompts.PickIcon`), rendered on the launcher tiles. A global dispatcher
+exception handler logs to `error.log` and keeps the app alive. `dotnetlib` remains the longer-term
+style reference.
+
 ## Next
 
-1. **UI / visual polish** (includes the app icon): the launcher and config windows apply the color
-   palette but have **no control styles** - every `Button`/`TextBox`/`ComboBox`/`ListBox`/`DataGrid`
-   uses WPF's default templates, so the app looks unstyled. Add implicit `Style`s (flat borders,
-   padding, rounded corners, hover/focus) to the theme dictionaries for both light and dark, so it
-   reads as the "polished system dialog" the architecture calls for, plus an `ApplicationIcon` and a
-   real tray icon. `dotnetlib` is the style reference. Not a bug - a missing layer.
-2. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.
-3. Optional: revisiting the dotnetlib dependency once a shared feed exists.
+1. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.
+2. Optional: revisiting the dotnetlib dependency once a shared feed exists; a real "Sync between
+   machines" implementation (the Settings placeholder is wired for it).
