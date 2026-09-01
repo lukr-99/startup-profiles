@@ -15,6 +15,8 @@ public partial class ConfigWindow : Window
         DataContext = viewModel;
         _applyTheme = applyTheme;
         ThemeBox.SelectedIndex = (int)current;
+        var version = typeof(ConfigWindow).Assembly.GetName().Version;
+        VersionText.Text = version is null ? "Startup Profiles" : $"Startup Profiles {version.Major}.{version.Minor}.{version.Build}";
         _ready = true;
     }
 

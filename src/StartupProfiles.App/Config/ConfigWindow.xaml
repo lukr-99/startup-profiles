@@ -62,17 +62,17 @@
             <StackPanel Margin="0,0,16,8">
               <TextBlock Text="Name" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
               <TextBox Text="{Binding Editor.Name, UpdateSourceTrigger=PropertyChanged}"
-                       Width="220" Height="30" VerticalContentAlignment="Center" />
+                       Width="220" Height="32" VerticalContentAlignment="Center" />
             </StackPanel>
             <StackPanel Margin="0,0,16,8">
               <TextBlock Text="Icon" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
               <TextBox Text="{Binding Editor.Icon, UpdateSourceTrigger=PropertyChanged}"
-                       Width="120" Height="30" VerticalContentAlignment="Center" />
+                       Width="120" Height="32" VerticalContentAlignment="Center" />
             </StackPanel>
             <StackPanel Margin="0,0,0,8">
               <TextBlock Text="Startup" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
               <ComboBox ItemsSource="{x:Static config:ProfileEditor.StartupBehaviours}"
-                        SelectedItem="{Binding Editor.StartupBehaviour}" Width="220" Height="30" />
+                        SelectedItem="{Binding Editor.StartupBehaviour}" Width="220" Height="32" />
             </StackPanel>
           </WrapPanel>
 
@@ -147,6 +147,14 @@
           <Button Content="Import..." Command="{Binding ImportCommand}" Padding="12,6" />
         </StackPanel>
         <TextBlock Text="{Binding Status}" Foreground="{DynamicResource App.Muted}" Margin="0,12,0,0" />
+
+        <TextBlock Text="Sync" FontSize="15" FontWeight="SemiBold" Margin="0,26,0,8" />
+        <CheckBox Content="Automatically sync profiles between machines" IsEnabled="False" />
+        <TextBlock Text="Coming soon - profiles currently stay on this PC." Foreground="{DynamicResource App.Muted}"
+                   Margin="26,4,0,0" />
+
+        <TextBlock Text="About" FontSize="15" FontWeight="SemiBold" Margin="0,26,0,8" />
+        <TextBlock x:Name="VersionText" Foreground="{DynamicResource App.Muted}" />
       </StackPanel>
     </TabItem>
   </TabControl>

@@ -84,7 +84,8 @@
     <Setter Property="Background" Value="{DynamicResource App.Surface}" />
     <Setter Property="BorderBrush" Value="{DynamicResource App.Border}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Padding" Value="7,5" />
+    <Setter Property="Padding" Value="9,3" />
+    <Setter Property="MinHeight" Value="30" />
     <Setter Property="CaretBrush" Value="{DynamicResource App.Text}" />
     <Setter Property="SelectionBrush" Value="{DynamicResource App.Accent}" />
     <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -135,7 +136,7 @@
   <Style TargetType="ComboBox">
     <Setter Property="Foreground" Value="{DynamicResource App.Text}" />
     <Setter Property="Background" Value="{DynamicResource App.Surface}" />
-    <Setter Property="Height" Value="30" />
+    <Setter Property="MinHeight" Value="30" />
     <Setter Property="SnapsToDevicePixels" Value="True" />
     <Setter Property="Template">
       <Setter.Value>
@@ -341,7 +342,7 @@
     <Setter Property="RowHeaderWidth" Value="0" />
     <Setter Property="ColumnHeaderHeight" Value="34" />
     <Setter Property="CanUserResizeRows" Value="False" />
-    <Setter Property="RowHeight" Value="30" />
+    <Setter Property="RowHeight" Value="36" />
   </Style>
 
   <Style TargetType="DataGridColumnHeader">
@@ -388,8 +389,8 @@
   </Style>
 
   <Style x:Key="App.GridComboEditor" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-    <Setter Property="Margin" Value="2" />
-    <Setter Property="Height" Value="26" />
+    <Setter Property="Margin" Value="3" />
+    <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 
   <Style x:Key="App.GridCheckBox" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">

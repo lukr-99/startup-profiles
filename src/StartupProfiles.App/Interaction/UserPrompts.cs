@@ -5,47 +5,52 @@ using StartupProfiles.App.Themes;
 
 namespace StartupProfiles.App.Interaction;
 
-/// <summary>WPF implementation of <see cref="IUserPrompts"/> using message boxes and file dialogs.</summary>
+/// <summary>
+/// WPF implementation of <see cref="IUserPrompts"/>. Uses small theme-aware dialogs (not the native
+/// message box, which can't follow the app theme) and the shell file dialogs.
+/// </summary>
 public sealed class UserPrompts : IUserPrompts
 {
-    public bool Confirm(string message) =>
-        MessageBox.Show(message, "Startup Profiles", MessageBoxButton.OKCancel, MessageBoxImage.Warning)
-            == MessageBoxResult.OK;
+    public bool Confirm(string message)
+    {
+        var panel = NewPanel();
+        panel.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, MaxWidth = 360 });
 
-    public void Info(string message) =>
-        MessageBox.Show(message, "Startup Profiles", MessageBoxButton.OK, MessageBoxImage.Information);
+        var ok = PrimaryButton("OK");
+        var cancel = SecondaryButton("Cancel", isCancel: true);
+        panel.Children.Add(ButtonRow(ok, cancel));
+
+        var dialog = CreateDialog("Startup Profiles", panel);
+        ok.Click += (_, _) => dialog.DialogResult = true;
+        return dialog.ShowDialog() == true;
+    }
+
+    public void Info(string message)
+    {
+        var panel = NewPanel();
+        panel.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, MaxWidth = 360 });
+
+        var ok = PrimaryButton("OK");
+        panel.Children.Add(ButtonRow(ok));
+
+        var dialog = CreateDialog("Startup Profiles", panel);
+        ok.Click += (_, _) => dialog.DialogResult = true;
+        dialog.ShowDialog();
+    }
 
     public string? AskText(string title, string prompt)
     {
         var box = new TextBox { Margin = new Thickness(0, 8, 0, 0), MinWidth = 300 };
-        var panel = new StackPanel { Margin = new Thickness(18) };
+        var panel = NewPanel();
         panel.Children.Add(new TextBlock { Text = prompt });
         panel.Children.Add(box);
 
-        var ok = new Button { Content = "OK", IsDefault = true, Width = 84, Margin = new Thickness(0, 14, 8, 0) };
-        if (Application.Current.TryFindResource("App.AccentButton") is Style accent) ok.Style = accent;
-        var cancel = new Button { Content = "Cancel", IsCancel = true, Width = 84, Margin = new Thickness(0, 14, 0, 0), Padding = new Thickness(16, 7, 16, 7) };
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        buttons.Children.Add(ok);
-        buttons.Children.Add(cancel);
-        panel.Children.Add(buttons);
+        var ok = PrimaryButton("OK");
+        var cancel = SecondaryButton("Cancel", isCancel: true);
+        panel.Children.Add(ButtonRow(ok, cancel));
 
-        var dialog = new Window
-        {
-            Title = title,
-            Content = panel,
-            FontFamily = new System.Windows.Media.FontFamily("Segoe UI"),
-            SizeToContent = SizeToContent.WidthAndHeight,
-            ResizeMode = ResizeMode.NoResize,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Owner = Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive),
-        };
-        // Built in code, so it does not inherit the themed window's resources - apply them explicitly.
-        dialog.SetResourceReference(Control.BackgroundProperty, "App.Background");
-        dialog.SetResourceReference(Control.ForegroundProperty, "App.Text");
-        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
-
-        ok.Click += (_, _) => { dialog.DialogResult = true; };
+        var dialog = CreateDialog(title, panel);
+        ok.Click += (_, _) => dialog.DialogResult = true;
         dialog.Loaded += (_, _) => box.Focus();
 
         return dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(box.Text) ? box.Text.Trim() : null;
@@ -61,5 +66,49 @@ public sealed class UserPrompts : IUserPrompts
     {
         var dialog = new OpenFileDialog { Filter = "JSON (*.json)|*.json" };
         return dialog.ShowDialog() == true ? dialog.FileName : null;
+    }
+
+    private static StackPanel NewPanel() => new() { Margin = new Thickness(18) };
+
+    private static Button PrimaryButton(string content)
+    {
+        var button = new Button { Content = content, IsDefault = true, MinWidth = 88, Margin = new Thickness(0, 16, 8, 0) };
+        if (Application.Current.TryFindResource("App.AccentButton") is Style accent) button.Style = accent;
+        return button;
+    }
+
+    private static Button SecondaryButton(string content, bool isCancel) => new()
+    {
+        Content = content,
+        IsCancel = isCancel,
+        MinWidth = 88,
+        Padding = new Thickness(16, 7, 16, 7),
+        Margin = new Thickness(0, 16, 0, 0),
+    };
+
+    private static StackPanel ButtonRow(params Button[] buttons)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        foreach (var button in buttons) row.Children.Add(button);
+        return row;
+    }
+
+    // Built in code, so a dialog does not inherit the themed window's resources - apply them explicitly.
+    private static Window CreateDialog(string title, object content)
+    {
+        var dialog = new Window
+        {
+            Title = title,
+            Content = content,
+            FontFamily = new System.Windows.Media.FontFamily("Segoe UI"),
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive),
+        };
+        dialog.SetResourceReference(Control.BackgroundProperty, "App.Background");
+        dialog.SetResourceReference(Control.ForegroundProperty, "App.Text");
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        return dialog;
     }
 }
