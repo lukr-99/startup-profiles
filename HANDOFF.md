@@ -75,6 +75,11 @@ only - launch-minimized is not yet an action field.
    `%LOCALAPPDATA%\Programs`, register the launcher at login via `IStartupRegistration`, **register the
    `startupprofiles://` protocol** (HKCU `Software\Classes\startupprofiles` pointing at the exe with
    `"%1"`), and install the agent skill.
-2. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.
-3. Optional: an app icon (`ApplicationIcon` and a real tray icon), and revisiting the dotnetlib
+2. **UI / visual polish**: the launcher and config windows apply the color palette but have **no control
+   styles** - every `Button`/`TextBox`/`ComboBox`/`ListBox`/`DataGrid` uses WPF's default templates, so
+   the app looks unstyled. Add implicit `Style`s (flat borders, padding, rounded corners, hover/focus)
+   to the theme dictionaries for both light and dark, so it reads as the "polished system dialog" the
+   architecture calls for. `dotnetlib` is the style reference. Not a bug - a missing layer.
+3. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.
+4. Optional: an app icon (`ApplicationIcon` and a real tray icon), and revisiting the dotnetlib
    dependency once a shared feed exists.
