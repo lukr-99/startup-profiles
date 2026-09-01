@@ -18,6 +18,12 @@ public partial class ConfigWindow : Window
         _ready = true;
     }
 
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        Themes.ThemeManager.ApplyTitleBar(this);
+    }
+
     private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_ready) _applyTheme((ThemeMode)ThemeBox.SelectedIndex);

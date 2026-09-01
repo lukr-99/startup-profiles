@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using StartupProfiles.App.Themes;
 
 namespace StartupProfiles.App.Launcher;
 
@@ -14,6 +15,12 @@ public partial class LauncherWindow : Window
         DataContext = viewModel;
         viewModel.CloseRequested += () => Dispatcher.Invoke(Close);
         viewModel.OpenConfigRequested += openConfig;
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        ThemeManager.ApplyTitleBar(this);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

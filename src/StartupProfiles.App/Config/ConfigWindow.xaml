@@ -85,9 +85,7 @@
       <TextBlock Grid.Row="1" Text="Actions" FontWeight="SemiBold" Margin="0,10,0,6" />
 
       <DataGrid Grid.Row="2" ItemsSource="{Binding Editor.Actions}" SelectedItem="{Binding SelectedAction}"
-                AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column"
-                GridLinesVisibility="None" Background="{DynamicResource App.Surface}"
-                RowBackground="{DynamicResource App.Surface}" BorderBrush="{DynamicResource App.Border}">
+                AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column">
         <DataGrid.Columns>
           <DataGridComboBoxColumn Header="Type" Width="130"
                                   ItemsSource="{x:Static config:ActionEditor.ActionTypes}"
@@ -111,9 +109,8 @@
       </StackPanel>
 
       <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,16,0,0">
-        <Button Content="Save" Command="{Binding SaveCommand}" Padding="16,7"
-                Background="{DynamicResource App.Accent}" Foreground="{DynamicResource App.OnAccent}"
-                FontWeight="SemiBold" BorderThickness="0" Margin="0,0,8,0" />
+        <Button Content="Save" Command="{Binding SaveCommand}" Style="{StaticResource App.AccentButton}"
+                Margin="0,0,8,0" />
         <Button Content="Run now" Command="{Binding RunCommand}" Padding="12,7" Margin="0,0,8,0" />
         <Button Content="Delete" Command="{Binding DeleteCommand}" Padding="12,7"
                 Foreground="{DynamicResource App.Danger}" />

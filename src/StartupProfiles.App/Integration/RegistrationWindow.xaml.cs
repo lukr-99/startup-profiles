@@ -1,4 +1,5 @@
 using System.Windows;
+using StartupProfiles.App.Themes;
 
 namespace StartupProfiles.App.Integration;
 
@@ -9,5 +10,11 @@ public partial class RegistrationWindow : Window
     {
         InitializeComponent();
         DataContext = viewModel;
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        ThemeManager.ApplyTitleBar(this);
     }
 }

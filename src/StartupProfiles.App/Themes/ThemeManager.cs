@@ -1,25 +1,50 @@
+using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Interop;
 using Microsoft.Win32;
 
 namespace StartupProfiles.App.Themes;
 
 /// <summary>
-/// Merges the light or dark semantic-token dictionary into the application resources. In
+/// Merges the light or dark semantic-token dictionary (plus the shared control styles) into the
+/// application resources, and matches the native window title bar to the theme. In
 /// <see cref="ThemeMode.System"/> it follows the Windows "apps use light theme" setting.
 /// </summary>
 public sealed class ThemeManager
 {
+    private const string ControlsUri = "pack://application:,,,/StartupProfiles;component/Themes/Controls.xaml";
+
     private readonly Application _app;
 
     public ThemeManager(Application app) => _app = app;
 
+    /// <summary>Whether the most recently applied theme resolves to dark (drives the title-bar color).</summary>
+    public static bool EffectiveIsDark { get; private set; }
+
     public void Apply(ThemeMode mode)
     {
         var effective = mode == ThemeMode.System ? ResolveSystem() : mode;
-        var uri = new Uri($"pack://application:,,,/StartupProfiles;component/Themes/{effective}.xaml");
+        EffectiveIsDark = effective == ThemeMode.Dark;
 
         _app.Resources.MergedDictionaries.Clear();
-        _app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = uri });
+        _app.Resources.MergedDictionaries.Add(new ResourceDictionary
+        {
+            Source = new Uri($"pack://application:,,,/StartupProfiles;component/Themes/{effective}.xaml"),
+        });
+        _app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri(ControlsUri) });
+
+        foreach (Window window in _app.Windows) ApplyTitleBar(window);
+    }
+
+    /// <summary>Colors the native title bar of <paramref name="window"/> to match the current theme.</summary>
+    public static void ApplyTitleBar(Window window)
+    {
+        var hwnd = new WindowInteropHelper(window).Handle;
+        if (hwnd == IntPtr.Zero) return; // Not yet created; the window re-applies on SourceInitialized.
+
+        var useDark = EffectiveIsDark ? 1 : 0;
+        try { _ = DwmSetWindowAttribute(hwnd, DwmwaUseImmersiveDarkMode, ref useDark, sizeof(int)); }
+        catch (DllNotFoundException) { /* Pre-Windows 10 1809: no immersive dark mode. */ }
     }
 
     private static ThemeMode ResolveSystem()
@@ -31,4 +56,9 @@ public sealed class ThemeManager
 
     public static ThemeMode Parse(string? value) =>
         Enum.TryParse<ThemeMode>(value, ignoreCase: true, out var mode) ? mode : ThemeMode.System;
+
+    private const int DwmwaUseImmersiveDarkMode = 20;
+
+    [DllImport("dwmapi.dll", SetLastError = true)]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int pvAttribute, int cbAttribute);
 }

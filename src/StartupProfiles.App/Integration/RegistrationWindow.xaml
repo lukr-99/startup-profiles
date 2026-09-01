@@ -52,9 +52,7 @@
 
     <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
       <Button Content="Don't add" Command="{Binding DontAddCommand}" Padding="14,7" Margin="0,0,10,0" />
-      <Button Content="Add" Command="{Binding AddCommand}" Padding="18,7"
-              Background="{DynamicResource App.Accent}" Foreground="{DynamicResource App.OnAccent}"
-              FontWeight="SemiBold" BorderThickness="0" />
+      <Button Content="Add" Command="{Binding AddCommand}" Style="{StaticResource App.AccentButton}" />
     </StackPanel>
   </Grid>
 </Window>
