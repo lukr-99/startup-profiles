@@ -291,7 +291,9 @@
   </Style>
 
   <!-- ===== ScrollBar (thin, thumb-only) ===== -->
-  <Style x:Key="App.ScrollThumb" TargetType="Thumb">
+  <!-- NB: key must not collide with the App.ScrollThumb *brush* token, or the thumb's
+       Background DynamicResource resolves to this Style and rendering throws. -->
+  <Style x:Key="App.ScrollThumbStyle" TargetType="Thumb">
     <Setter Property="OverridesDefaultStyle" Value="True" />
     <Setter Property="IsTabStop" Value="False" />
     <Setter Property="Template">
@@ -335,7 +337,7 @@
                 <RepeatButton Style="{StaticResource App.ScrollPage}" Command="ScrollBar.PageUpCommand" />
               </Track.DecreaseRepeatButton>
               <Track.Thumb>
-                <Thumb Style="{StaticResource App.ScrollThumb}" />
+                <Thumb Style="{StaticResource App.ScrollThumbStyle}" />
               </Track.Thumb>
               <Track.IncreaseRepeatButton>
                 <RepeatButton Style="{StaticResource App.ScrollPage}" Command="ScrollBar.PageDownCommand" />
