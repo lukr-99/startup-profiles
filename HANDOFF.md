@@ -4,7 +4,7 @@ Snapshot of Windows Startup Profiles as of 2026-08-31. For the full design see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); for conventions see [AGENTS.md](AGENTS.md) and
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Status: Milestones 1-5 + installer done; UI polish + conditions next
+## Status: Milestones 1-5, installer, release CI done; UI polish + conditions next
 
 The app runs today: launch it and a WPF login selector appears; pick a context and it launches that
 profile's actions, then lives in the tray. Profiles are editable in the config window. A loopback HTTP
@@ -82,13 +82,26 @@ all (registry keys removed directly so it works even if the exe is gone; `-Purge
 `%APPDATA%\StartupProfiles`). Switches: `-Port`, `-FrameworkDependent`, `-NoStartup`, `-NoProtocol`,
 `-NoSkill`.
 
+## Releases
+
+`.github/workflows/release.yml` cuts a release on a `v*` tag push: it derives the version from the tag,
+stamps it into the assembly via `-p:Version=<tag>` (the one version source is `VersionPrefix` in
+`Directory.Build.props`; Debug builds add a `-dev` suffix), tests, publishes a self-contained win-x64
+build, zips it as `StartupProfiles-<version>-win-x64.zip`, and attaches it to a GitHub Release with
+generated notes. Mirrors GameScout's workflow, minus the Inno installer (this app installs via
+`install/install.ps1`). Releases are private until the repo is made public. To ship: bump the tag and
+`git push origin vX.Y.Z`.
+
+Not yet (parity with GameScout, if wanted later): an Inno Setup installer artifact and an in-app update
+checker that reads the latest GitHub Release.
+
 ## Next
 
-1. **UI / visual polish**: the launcher and config windows apply the color palette but have **no control
-   styles** - every `Button`/`TextBox`/`ComboBox`/`ListBox`/`DataGrid` uses WPF's default templates, so
-   the app looks unstyled. Add implicit `Style`s (flat borders, padding, rounded corners, hover/focus)
-   to the theme dictionaries for both light and dark, so it reads as the "polished system dialog" the
-   architecture calls for. `dotnetlib` is the style reference. Not a bug - a missing layer.
+1. **UI / visual polish** (includes the app icon): the launcher and config windows apply the color
+   palette but have **no control styles** - every `Button`/`TextBox`/`ComboBox`/`ListBox`/`DataGrid`
+   uses WPF's default templates, so the app looks unstyled. Add implicit `Style`s (flat borders,
+   padding, rounded corners, hover/focus) to the theme dictionaries for both light and dark, so it
+   reads as the "polished system dialog" the architecture calls for, plus an `ApplicationIcon` and a
+   real tray icon. `dotnetlib` is the style reference. Not a bug - a missing layer.
 2. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.
-3. Optional: an app icon (`ApplicationIcon` and a real tray icon), and revisiting the dotnetlib
-   dependency once a shared feed exists.
+3. Optional: revisiting the dotnetlib dependency once a shared feed exists.

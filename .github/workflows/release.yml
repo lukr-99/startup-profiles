@@ -1,0 +1,49 @@
+name: Release
+
+# Cut a release by pushing a tag like v0.2.0. This publishes a self-contained build, zips it, and
+# attaches StartupProfiles-<version>-win-x64.zip to a GitHub Release. The version is derived from the
+# tag and stamped into the assembly via -p:Version, so releases are versioned from the tag alone.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Derive version from tag
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}" -replace '^v',''
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Test
+        run: dotnet test StartupProfiles.slnx -c Release
+
+      - name: Publish (self-contained win-x64)
+        run: >
+          dotnet publish src/StartupProfiles.App/StartupProfiles.App.csproj
+          -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false
+          -p:Version=${{ steps.ver.outputs.version }}
+          -o publish
+
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path publish\* -DestinationPath StartupProfiles-${{ steps.ver.outputs.version }}-win-x64.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: StartupProfiles-${{ steps.ver.outputs.version }}-win-x64.zip
+          generate_release_notes: true

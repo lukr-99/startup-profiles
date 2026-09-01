@@ -10,6 +10,11 @@
     <Authors>lukr-99</Authors>
     <Copyright>Copyright (c) 2026 lukr-99</Copyright>
     <RepositoryUrl>https://github.com/lukr-99/startup-profiles</RepositoryUrl>
-    <Version>0.1.0</Version>
+    <!-- Single source of truth for the version. Release CI stamps the git tag via -p:Version=<tag>
+         (see .github/workflows/release.yml); otherwise builds use VersionPrefix. Debug builds carry a
+         -dev suffix so a locally-run instance is unmistakable from an installed release, while
+         AssemblyVersion stays numeric (VersionPrefix) for clean comparisons. -->
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionSuffix Condition="'$(Configuration)' == 'Debug'">dev</VersionSuffix>
   </PropertyGroup>
 </Project>

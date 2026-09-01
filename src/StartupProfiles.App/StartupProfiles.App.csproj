@@ -13,7 +13,6 @@
     <!-- Pin to the installed shared runtime; the SDK otherwise resolves 10.0.9 for the WPF
          markup-compile helper, which is not installed here. Roll-forward still runs it on newer patches. -->
     <RuntimeFrameworkVersion>10.0.7</RuntimeFrameworkVersion>
-    <Version>0.1.0</Version>
     <Product>Windows Startup Profiles</Product>
     <!-- Self-contained single-file publish defaults (overridable on the CLI) -->
     <RuntimeIdentifier Condition="'$(PublishSingleFile)' == 'true'">win-x64</RuntimeIdentifier>
