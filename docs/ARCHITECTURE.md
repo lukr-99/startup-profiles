@@ -241,11 +241,19 @@ Built in Core/Integration and StartupProfiles.App/Integration (Milestone 5):
 - **Api** - `POST /api/register` applies a request via `IProfileRegistrar` behind the same two-phase
   confirmation token as delete.
 
-Still open on the contract: registering the `startupprofiles://` scheme with Windows (installer
-milestone), and `supportsMinimized` is carried as metadata only (launch-minimized is not yet an action
-field). The Windows adapters carry platform tests only for the registry round-trip; service and VPN
-control are thin wrappers over the OS and are exercised manually. WPF windows are covered by view-model
-tests, not UI automation.
+Registering the `startupprofiles://` scheme with Windows is done by the installer via
+`IProtocolRegistration` / `WindowsProtocolRegistration` (see below). Still open on the contract:
+`supportsMinimized` is carried as metadata only (launch-minimized is not yet an action field). The
+Windows adapters carry platform tests only for the registry round-trips (startup + protocol); service
+and VPN control are thin wrappers over the OS and are exercised manually. WPF windows are covered by
+view-model tests, not UI automation.
+
+Installer (`install/install.ps1`, `uninstall.ps1`): a per-user PowerShell installer. It publishes the
+App, installs it to `%LOCALAPPDATA%\Programs\StartupProfiles`, adds a Start Menu shortcut, and installs
+the agent skill; login and protocol registration are delegated to the app's own maintenance commands
+(`StartupProfiles.exe --register-login` / `--register-protocol`), which run the `IStartupRegistration`
+and `IProtocolRegistration` adapters so the registry formats stay owned by the app. `App/Maintenance`
+holds the command parse/dispatch (`MaintenanceCommand` / `MaintenanceCommands`).
 
 ## Future ideas (not scheduled)
 

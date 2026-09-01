@@ -4,7 +4,7 @@ Snapshot of Windows Startup Profiles as of 2026-08-31. For the full design see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); for conventions see [AGENTS.md](AGENTS.md) and
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Status: Milestones 1-5 done; installer + conditions next
+## Status: Milestones 1-5 + installer done; UI polish + conditions next
 
 The app runs today: launch it and a WPF login selector appears; pick a context and it launches that
 profile's actions, then lives in the tray. Profiles are editable in the config window. A loopback HTTP
@@ -69,17 +69,26 @@ One deliberate gap: **registering the `startupprofiles://` scheme with Windows i
 (below). Until then, invoke the exe with the URI directly. `supportsMinimized` is carried as metadata
 only - launch-minimized is not yet an action field.
 
+## Installer (done)
+
+`install/install.ps1` installs for the current user (no elevation): publishes the App (self-contained
+by default, `-FrameworkDependent` for the smaller build), installs to
+`%LOCALAPPDATA%\Programs\StartupProfiles`, adds a Start Menu shortcut, registers the launcher at login,
+registers the `startupprofiles://` protocol, and installs the agent skill to `~/.claude/skills`.
+Login/protocol registration is done by invoking the app's own maintenance commands
+(`StartupProfiles.exe --register-login` / `--register-protocol`), which run the
+`IStartupRegistration` / `IProtocolRegistration` Windows adapters. `install/uninstall.ps1` reverses it
+all (registry keys removed directly so it works even if the exe is gone; `-PurgeData` also deletes
+`%APPDATA%\StartupProfiles`). Switches: `-Port`, `-FrameworkDependent`, `-NoStartup`, `-NoProtocol`,
+`-NoSkill`.
+
 ## Next
 
-1. **Installer** (`install/install.ps1` is still a placeholder): publish, install to
-   `%LOCALAPPDATA%\Programs`, register the launcher at login via `IStartupRegistration`, **register the
-   `startupprofiles://` protocol** (HKCU `Software\Classes\startupprofiles` pointing at the exe with
-   `"%1"`), and install the agent skill.
-2. **UI / visual polish**: the launcher and config windows apply the color palette but have **no control
+1. **UI / visual polish**: the launcher and config windows apply the color palette but have **no control
    styles** - every `Button`/`TextBox`/`ComboBox`/`ListBox`/`DataGrid` uses WPF's default templates, so
    the app looks unstyled. Add implicit `Style`s (flat borders, padding, rounded corners, hover/focus)
    to the theme dictionaries for both light and dark, so it reads as the "polished system dialog" the
    architecture calls for. `dotnetlib` is the style reference. Not a bug - a missing layer.
-3. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.
-4. Optional: an app icon (`ApplicationIcon` and a real tray icon), and revisiting the dotnetlib
+2. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.
+3. Optional: an app icon (`ApplicationIcon` and a real tray icon), and revisiting the dotnetlib
    dependency once a shared feed exists.

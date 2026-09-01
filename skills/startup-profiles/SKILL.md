@@ -7,7 +7,8 @@ description: Inspect and run Windows startup profiles through the Startup Profil
 
 Startup Profiles runs a local-only HTTP API (bound to `127.0.0.1`) exposing the user's context
 startup profiles, their actions, and execution history. Use it instead of guessing which apps a
-context launches. Registration (`POST /api/register`) is not implemented yet and returns 501.
+context launches. An app can also request to be added to a profile via `POST /api/register`
+(two-phase confirm, like delete - see [docs/INTEGRATION.md](../../docs/INTEGRATION.md)).
 
 ## 1. Discover the endpoint
 

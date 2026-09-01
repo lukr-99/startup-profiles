@@ -23,10 +23,11 @@ What are you doing?
 Pick a context and it runs only the apps, URLs, scripts, folders and services that belong
 to that profile - as a small declarative startup workflow, not just a list of `.exe`s.
 
-> Status: **early**. The portable Core (models, storage, execution engine) and the Windows platform
-> adapters (startup registration, service, VPN) are implemented and tested; the App host, launcher UI,
-> loopback API, and integration contract are not built yet. See
-> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the plan and the current implementation status.
+> Status: **working**. The portable Core, the Windows adapters, the App host (loopback API + tray), the
+> WPF launcher and config UIs, and the integration contract (protocol / CLI / API + confirmation window)
+> are implemented and tested, and `install/install.ps1` installs it. Still to come: UI visual polish,
+> profile conditions, and an app icon. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the current
+> implementation status.
 
 ## The idea
 
@@ -99,17 +100,29 @@ Contract details: [docs/INTEGRATION.md](docs/INTEGRATION.md).
 - Windows 10/11
 - .NET 10 SDK (to build)
 
-## Quick start (planned)
+## Quick start
+
+Build and run from source:
 
 ```powershell
 git clone https://github.com/lukr-99/startup-profiles.git
 cd startup-profiles
 dotnet build StartupProfiles.slnx
 dotnet test StartupProfiles.slnx
+dotnet run --project src/StartupProfiles.App
 ```
 
-An `install/install.ps1` script (register at login, Start Menu shortcut, install the agent
-skill) will land with the first working build.
+Or install it for the current user (no elevation). This publishes the app to
+`%LOCALAPPDATA%\Programs\StartupProfiles`, adds a Start Menu shortcut, registers the launcher to run
+at login, registers the `startupprofiles://` protocol, and installs the Claude agent skill:
+
+```powershell
+.\install\install.ps1
+```
+
+Useful switches: `-FrameworkDependent` (smaller build, needs the .NET 10 Desktop Runtime),
+`-NoStartup` (don't run at login), `-NoProtocol`, `-NoSkill`, `-Port <n>`. Remove everything with
+`.\install\uninstall.ps1` (add `-PurgeData` to also delete your profiles).
 
 ## License
 
