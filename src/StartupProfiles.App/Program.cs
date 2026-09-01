@@ -10,6 +10,7 @@ using StartupProfiles.App.Config;
 using StartupProfiles.App.Integration;
 using StartupProfiles.App.Interaction;
 using StartupProfiles.App.Launcher;
+using StartupProfiles.App.Maintenance;
 using StartupProfiles.App.Themes;
 using StartupProfiles.App.Tray;
 using StartupProfiles.Core.Confirmations;
@@ -25,6 +26,10 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        // Installer maintenance commands (--register-login, --register-protocol, ...) run headlessly and
+        // exit; they must not take the mutex or start the API.
+        if (MaintenanceCommands.TryRun(args)) return;
+
         // A `register` / startupprofiles:// invocation is a one-shot confirmation dialog: it must not take
         // the single-instance mutex or start the API, so it can run alongside a full instance.
         if (RegistrationLaunch.IsRegistrationInvocation(args))
