@@ -39,7 +39,7 @@ public sealed class ProfileEditor : ObservableObject
 
     public static IReadOnlyList<StartupBehaviour> StartupBehaviours { get; } = Enum.GetValues<StartupBehaviour>();
 
-    public static ProfileEditor FromProfile(Profile profile)
+    public static ProfileEditor FromProfile(Profile profile, Func<string, LibraryItem?>? findItem = null)
     {
         var editor = new ProfileEditor
         {
@@ -49,14 +49,14 @@ public sealed class ProfileEditor : ObservableObject
             IncludeBase = profile.IncludeBase,
             StartupBehaviour = profile.StartupBehaviour,
         };
-        foreach (var action in profile.Actions) editor.Actions.Add(ActionEditor.FromAction(action));
+        foreach (var action in profile.Actions) editor.Actions.Add(ActionEditor.FromAction(action, findItem));
         return editor;
     }
 
-    public static ProfileEditor FromBase(StartupBase value)
+    public static ProfileEditor FromBase(StartupBase value, Func<string, LibraryItem?>? findItem = null)
     {
         var editor = new ProfileEditor { Id = ProfileExecutor.BaseRunId, IsBase = true, Name = "Base" };
-        foreach (var action in value.Actions) editor.Actions.Add(ActionEditor.FromAction(action));
+        foreach (var action in value.Actions) editor.Actions.Add(ActionEditor.FromAction(action, findItem));
         return editor;
     }
 

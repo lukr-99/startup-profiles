@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Routing;
 using StartupProfiles.Core.Confirmations;
 using StartupProfiles.Core.Execution;
 using StartupProfiles.Core.Integration;
+using StartupProfiles.Core.Library;
 using StartupProfiles.Core.Models;
 using StartupProfiles.Core.Storage;
 
@@ -36,6 +37,43 @@ public static class ApiEndpoints
 
         api.MapPost("/base/run", async (ProfileExecutor executor) =>
             Results.Ok(await executor.RunBaseAndRecordAsync()));
+
+        // The global library: startable items that profile and base actions link to via libraryItemId.
+        api.MapGet("/library", (LibraryService library) => Results.Ok(library.GetAll()));
+
+        api.MapPost("/library", (LibraryItem item, LibraryService library) =>
+        {
+            if (!IsValid(item, out var error)) return Reject(error);
+            var added = library.Add(item);
+            return Results.Created($"/api/library/{added.Id}", added);
+        });
+
+        api.MapPut("/library/{id}", (string id, LibraryItem item, LibraryService library) =>
+        {
+            var target = item with { Id = id };
+            if (!IsValid(target, out var error)) return Reject(error);
+            library.Save(target);
+            return Results.Ok(target);
+        });
+
+        // Deleting an item turns the links to it into standalone actions (two-phase confirm, like profile delete).
+        api.MapDelete("/library/{id}", (string id, string? confirmToken, LibraryService library, ConfirmationService confirm) =>
+        {
+            if (library.Find(id) is not { } item) return Results.NotFound();
+
+            var signature = ConfirmationService.Signature("library.delete", id);
+            if (!confirm.TryConsume(confirmToken, signature))
+            {
+                var users = library.UsedBy(id);
+                var summary = users.Count == 0
+                    ? $"Delete library item '{item.Name}'."
+                    : $"Delete library item '{item.Name}'; {string.Join(", ", users)} keep it as a standalone action.";
+                return Results.Ok(new ConfirmationRequired(true, confirm.Issue(signature), summary));
+            }
+
+            library.Remove(id);
+            return Results.Ok(new OperationResult(true));
+        });
 
         api.MapGet("/profiles", (IProfileStore profiles) =>
             Results.Ok(profiles.GetAll().Select(ProfileSummary.From)));
@@ -121,6 +159,14 @@ public static class ApiEndpoints
         if (outcome.AlreadyPresentIn.Count > 0) parts.Add($"already in {string.Join(", ", outcome.AlreadyPresentIn)}");
         if (outcome.UnknownProfileIds.Count > 0) parts.Add($"unknown: {string.Join(", ", outcome.UnknownProfileIds)}");
         return parts.Count > 0 ? string.Join("; ", parts) : "No changes.";
+    }
+
+    private static bool IsValid(LibraryItem item, out string error)
+    {
+        if (string.IsNullOrWhiteSpace(item.Name)) { error = "Library item name is required."; return false; }
+        if (string.IsNullOrWhiteSpace(item.Target)) { error = "Library item target is required."; return false; }
+        error = "";
+        return true;
     }
 
     private static bool IsValid(Profile profile, out string error)

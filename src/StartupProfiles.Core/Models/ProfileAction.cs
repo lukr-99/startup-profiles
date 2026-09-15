@@ -1,7 +1,7 @@
 namespace StartupProfiles.Core.Models;
 
 /// <summary>One ordered step in a <see cref="Profile"/>: a typed action with its target and options.</summary>
-public sealed class ProfileAction
+public sealed record ProfileAction
 {
     public required ActionType Type { get; init; }
 
@@ -21,4 +21,11 @@ public sealed class ProfileAction
 
     /// <summary>Extra attempts when <see cref="FailureBehaviour"/> is <see cref="FailureBehaviour.Retry"/>.</summary>
     public int RetryCount { get; init; } = 1;
+
+    /// <summary>
+    /// The <see cref="LibraryItem"/> this action links to, or null for a standalone action. When linked, the item
+    /// supplies <see cref="Type"/>, <see cref="Target"/>, <see cref="Arguments"/>, and <see cref="RunAsAdmin"/> at run
+    /// time; the values stored here are the last-saved copy, used if the item has been deleted.
+    /// </summary>
+    public string? LibraryItemId { get; init; }
 }

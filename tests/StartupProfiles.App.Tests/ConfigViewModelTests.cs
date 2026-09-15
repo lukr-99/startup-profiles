@@ -1,5 +1,6 @@
 using StartupProfiles.App.Config;
 using StartupProfiles.Core.Models;
+using StartupProfiles.Core.Startup;
 using StartupProfiles.Core.Storage;
 
 namespace StartupProfiles.App.Tests;
@@ -11,7 +12,7 @@ public sealed class ConfigViewModelTests
     {
         using var services = AppTestServices.Create();
         var prompts = new FakeUserPrompts { TextResult = "My New" };
-        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Executor, prompts);
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, prompts);
 
         viewModel.NewCommand.Execute(null);
 
@@ -25,7 +26,7 @@ public sealed class ConfigViewModelTests
     public void Save_PersistsNameAndActions()
     {
         using var services = AppTestServices.Create();
-        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Executor, new FakeUserPrompts());
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
 
         viewModel.Selected = viewModel.Profiles.First(p => p.Id == "work");
         viewModel.Editor!.Name = "Work Edited";
@@ -42,7 +43,7 @@ public sealed class ConfigViewModelTests
     public void Delete_WhenConfirmed_RemovesProfile()
     {
         using var services = AppTestServices.Create();
-        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Executor, new FakeUserPrompts { ConfirmResult = true });
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts { ConfirmResult = true });
 
         viewModel.Selected = viewModel.Profiles.First(p => p.Id == "games");
         viewModel.DeleteCommand.Execute(null);
@@ -56,7 +57,7 @@ public sealed class ConfigViewModelTests
     public void Delete_WhenCancelled_KeepsProfile()
     {
         using var services = AppTestServices.Create();
-        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Executor, new FakeUserPrompts { ConfirmResult = false });
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts { ConfirmResult = false });
 
         viewModel.Selected = viewModel.Profiles.First(p => p.Id == "games");
         viewModel.DeleteCommand.Execute(null);
@@ -69,7 +70,7 @@ public sealed class ConfigViewModelTests
     {
         using var services = AppTestServices.Create();
         var prompts = new FakeUserPrompts { IconResult = "🎯" };
-        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Executor, prompts);
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, prompts);
         viewModel.Selected = viewModel.Profiles.First(p => p.Id == "dev");
 
         viewModel.PickIconCommand.Execute(null);
@@ -83,7 +84,7 @@ public sealed class ConfigViewModelTests
     {
         using var services = AppTestServices.Create();
         var prompts = new FakeUserPrompts { IconResult = null };
-        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Executor, prompts);
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, prompts);
         viewModel.Selected = viewModel.Profiles.First(p => p.Id == "dev");
 
         viewModel.PickIconCommand.Execute(null);
@@ -96,7 +97,7 @@ public sealed class ConfigViewModelTests
     {
         using var services = AppTestServices.Create();
         services.Base.Save(new StartupBase { Actions = [new ProfileAction { Type = ActionType.LaunchApp, Target = "noise.exe" }] });
-        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Executor, new FakeUserPrompts());
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
 
         var first = viewModel.Profiles[0];
         Assert.True(first.IsBase);
@@ -115,7 +116,7 @@ public sealed class ConfigViewModelTests
     public void Base_Save_PersistsToTheBaseStore_NotAsAProfile()
     {
         using var services = AppTestServices.Create();
-        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Executor, new FakeUserPrompts());
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
 
         viewModel.Selected = viewModel.Profiles.Single(p => p.IsBase);
         viewModel.AddActionCommand.Execute(null);
@@ -128,10 +129,30 @@ public sealed class ConfigViewModelTests
     }
 
     [Fact]
+    public void Base_RemoveThenSave_DeletesTheAction()
+    {
+        using var services = AppTestServices.Create();
+        services.Base.Save(new StartupBase
+        {
+            Actions = [new ProfileAction { Type = ActionType.LaunchApp, Target = "noise.exe" }, new ProfileAction { Type = ActionType.OpenUrl, Target = "https://a" }],
+        });
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+        viewModel.Selected = viewModel.Profiles.Single(p => p.IsBase);
+
+        viewModel.SelectedAction = viewModel.Editor!.Actions[0];
+        Assert.True(viewModel.RemoveActionCommand.CanExecute(null));
+        viewModel.RemoveActionCommand.Execute(null);
+        viewModel.SaveCommand.Execute(null);
+
+        Assert.Equal("https://a", Assert.Single(services.Base.Load().Actions).Target);
+        Assert.Equal(1, viewModel.Profiles.Single(p => p.IsBase).ActionCount);
+    }
+
+    [Fact]
     public void Save_PersistsIncludeBase()
     {
         using var services = AppTestServices.Create();
-        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Executor, new FakeUserPrompts());
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
 
         viewModel.Selected = viewModel.Profiles.First(p => p.Id == "games");
         Assert.True(viewModel.Editor!.IncludeBase);
@@ -142,10 +163,242 @@ public sealed class ConfigViewModelTests
     }
 
     [Fact]
+    public void StartupApps_ListsLaunchableWindowsStartupApps_ByName_ExceptItself()
+    {
+        using var services = AppTestServices.Create();
+        services.StartupApps.Entries.AddRange(
+        [
+            Entry("Steam", "steam.exe"),
+            Entry("Discord", "Update.exe", enabled: false),
+            Entry("StartupProfiles", "StartupProfiles.exe"),
+            new StartupEntry { Source = StartupEntrySource.PackagedTask, Key = "Feed", Name = "Feed", IsEnabled = true },
+        ]);
+
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+
+        Assert.Equal(["Discord", "Steam"], viewModel.StartupApps.Select(a => a.Name));
+        Assert.True(viewModel.StartupApps.Single(a => a.Name == "Steam").StartsWithWindows);
+        Assert.Equal("Registry · off in Windows", viewModel.StartupApps.Single(a => a.Name == "Discord").Detail);
+    }
+
+    [Fact]
+    public void AddStartupApp_AddsItsLaunchAction_AtTheDropPosition()
+    {
+        using var services = AppTestServices.Create();
+        services.Profiles.Save(new Profile
+        {
+            Id = "games",
+            Name = "Games",
+            Actions = [new ProfileAction { Type = ActionType.OpenUrl, Target = "https://a" }, new ProfileAction { Type = ActionType.OpenUrl, Target = "https://b" }],
+        });
+        services.StartupApps.Entries.Add(Entry("Steam", @"C:\Steam\steam.exe", arguments: "-silent"));
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "games");
+
+        viewModel.AddStartupApp(viewModel.StartupApps[0], index: 1);
+
+        var added = viewModel.Editor!.Actions[1];
+        Assert.Equal(ActionType.LaunchApp, added.Type);
+        Assert.Equal(@"C:\Steam\steam.exe", added.Target);
+        Assert.Equal("-silent", added.Arguments);
+        Assert.Same(added, viewModel.SelectedAction);
+        Assert.Equal(2, services.Profiles.Find("games")!.Actions.Count); // not saved until Save
+
+        // The app went into the library and the row links to it.
+        var item = Assert.Single(services.Library.GetAll());
+        Assert.Equal("Steam", item.Name);
+        Assert.True(added.IsLinked);
+        Assert.Equal(item.Id, added.LibraryItemId);
+        Assert.Equal("Steam", added.TargetDisplay);
+        Assert.Contains(viewModel.Library.Items, r => r.Id == item.Id);
+    }
+
+    [Fact]
+    public void AddLibraryRow_LinksTheItem_AndSaveStoresTheLink()
+    {
+        using var services = AppTestServices.Create();
+        services.Library.Add(new LibraryItem { Name = "Discord", Target = @"C:\Discord\Update.exe", Arguments = "--processStart Discord.exe" });
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "chill");
+
+        viewModel.AddLibraryRow(viewModel.Library.Items[0]);
+        viewModel.Editor!.Actions[0].DelaySeconds = 5;
+        viewModel.SaveCommand.Execute(null);
+
+        var saved = Assert.Single(services.Profiles.Find("chill")!.Actions);
+        Assert.Equal("discord", saved.LibraryItemId);
+        Assert.Equal(@"C:\Discord\Update.exe", saved.Target);
+        Assert.Equal(TimeSpan.FromSeconds(5), saved.Delay);
+    }
+
+    [Fact]
+    public void EditingALibraryItem_UpdatesTheLinkedRowsInTheOpenEditor()
+    {
+        using var services = AppTestServices.Create();
+        var item = services.Library.Add(new LibraryItem { Name = "Steam", Target = @"C:\Steam\steam.exe" });
+        services.Profiles.Save(new Profile { Id = "games", Name = "Games", Actions = [item.ApplyTo(new ProfileAction { Type = ActionType.LaunchApp })] });
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "games");
+
+        viewModel.Library.Selected = viewModel.Library.Items.Single();
+        viewModel.Library.Draft!.Name = "Steam (big picture)";
+        viewModel.Library.Draft.Arguments = "-bigpicture";
+        viewModel.Library.SaveCommand.Execute(null);
+
+        var row = Assert.Single(viewModel.Editor!.Actions);
+        Assert.Equal("Steam (big picture)", row.TargetDisplay);
+        Assert.Equal("-bigpicture", row.Arguments);
+        Assert.Equal("Used by Games.", viewModel.Library.UsedBy);
+        Assert.Equal("-bigpicture", services.Library.Find(item.Id)!.Arguments);
+    }
+
+    [Fact]
+    public void DeletingALibraryItem_KeepsTheRowsAsStandaloneActions()
+    {
+        using var services = AppTestServices.Create();
+        var item = services.Library.Add(new LibraryItem { Name = "Steam", Target = @"C:\Steam\steam.exe" });
+        services.Profiles.Save(new Profile { Id = "games", Name = "Games", Actions = [item.ApplyTo(new ProfileAction { Type = ActionType.LaunchApp })] });
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts { ConfirmResult = true });
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "games");
+
+        viewModel.Library.Selected = viewModel.Library.Items.Single();
+        viewModel.Library.DeleteCommand.Execute(null);
+
+        Assert.Empty(viewModel.Library.Items);
+        var row = Assert.Single(viewModel.Editor!.Actions);
+        Assert.False(row.IsLinked);
+        Assert.Equal(@"C:\Steam\steam.exe", row.TargetDisplay);
+        var stored = Assert.Single(services.Profiles.Find("games")!.Actions);
+        Assert.Null(stored.LibraryItemId);
+        Assert.Equal(@"C:\Steam\steam.exe", stored.Target);
+    }
+
+    [Fact]
+    public void NewLibraryItem_RequiresATarget_ThenSavesIt()
+    {
+        using var services = AppTestServices.Create();
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+
+        viewModel.Library.NewCommand.Execute(null);
+        viewModel.Library.Draft!.Name = "GitHub";
+        viewModel.Library.SaveCommand.Execute(null);
+        Assert.Empty(services.Library.GetAll());
+
+        viewModel.Library.Draft.Type = ActionType.OpenUrl;
+        viewModel.Library.Draft.Target = "https://github.com";
+        viewModel.Library.SaveCommand.Execute(null);
+
+        var item = Assert.Single(services.Library.GetAll());
+        Assert.Equal("github", item.Id);
+        Assert.Same(viewModel.Library.Selected, viewModel.Library.Items.Single());
+    }
+
+    [Fact]
+    public void SaveActionToLibrary_StoresAStandaloneRow_AndLinksIt()
+    {
+        using var services = AppTestServices.Create();
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "work");
+        viewModel.AddActionCommand.Execute(null);
+        var row = viewModel.Editor!.Actions[0];
+        row.Type = ActionType.OpenUrl;
+        row.Target = "https://www.office.com/";
+
+        viewModel.SaveActionToLibrary(row);
+
+        var item = Assert.Single(services.Library.GetAll());
+        Assert.Equal("office.com", item.Name);
+        Assert.Equal(item.Id, row.LibraryItemId);
+    }
+
+    [Fact]
+    public void MoveAction_DropsTheRowAboveTheTargetRow()
+    {
+        using var services = AppTestServices.Create();
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "work");
+        foreach (var target in new[] { "a", "b", "c", "d" })
+        {
+            viewModel.AddActionCommand.Execute(null);
+            viewModel.SelectedAction!.Target = target;
+        }
+        var actions = viewModel.Editor!.Actions;
+
+        viewModel.MoveAction(actions[0], 3);        // a onto d: b c a d
+        Assert.Equal(["b", "c", "a", "d"], actions.Select(a => a.Target));
+
+        viewModel.MoveAction(actions[3], 0);        // d onto b: d b c a
+        Assert.Equal(["d", "b", "c", "a"], actions.Select(a => a.Target));
+
+        viewModel.MoveAction(actions[1], null);     // b to the end: d c a b
+        Assert.Equal(["d", "c", "a", "b"], actions.Select(a => a.Target));
+    }
+
+    [Fact]
+    public void AddFiles_PutsEachInTheLibrary_AndLinksThemInOrder()
+    {
+        using var services = AppTestServices.Create();
+        var folder = Directory.CreateTempSubdirectory("sp-drop-").FullName;
+        try
+        {
+            var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+            viewModel.Selected = viewModel.Profiles.First(p => p.Id == "work");
+
+            viewModel.AddFiles([folder, @"C:\Tools\notes.txt", @"C:\Tools\app.exe"]);
+
+            Assert.Equal([ActionType.OpenFolder, ActionType.OpenFile, ActionType.LaunchApp], viewModel.Editor!.Actions.Select(a => a.Type));
+            Assert.All(viewModel.Editor.Actions, a => Assert.True(a.IsLinked));
+            Assert.Equal(3, services.Library.GetAll().Count);
+        }
+        finally
+        {
+            Directory.Delete(folder);
+        }
+    }
+
+    [Fact]
+    public void AddStartupApp_WithoutAPosition_Appends_AndNeverAddsTheSameAppTwice()
+    {
+        using var services = AppTestServices.Create();
+        services.StartupApps.Entries.Add(Entry("Steam", @"C:\Steam\steam.exe", arguments: "-silent"));
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+        viewModel.Selected = viewModel.Profiles.Single(p => p.IsBase);
+
+        viewModel.AddStartupApp(viewModel.StartupApps[0]);
+        viewModel.AddStartupApp(viewModel.StartupApps[0]);
+
+        Assert.Single(viewModel.Editor!.Actions);
+        Assert.Single(services.Library.GetAll());
+        Assert.Contains("already", viewModel.Status, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddStartupApp_WithNothingSelected_DoesNothing()
+    {
+        using var services = AppTestServices.Create();
+        services.StartupApps.Entries.Add(Entry("Steam", "steam.exe"));
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+
+        viewModel.AddStartupApp(viewModel.StartupApps[0]);
+
+        Assert.Null(viewModel.Editor);
+    }
+
+    private static StartupEntry Entry(string name, string target, bool enabled = true, string? arguments = null) => new()
+    {
+        Source = StartupEntrySource.UserRunKey,
+        Key = name,
+        Name = name,
+        IsEnabled = enabled,
+        CanToggle = true,
+        Launch = new ProfileAction { Type = ActionType.LaunchApp, Target = target, Arguments = arguments },
+    };
+
+    [Fact]
     public void AddAction_ThenMoveUp_ReordersSelectedAction()
     {
         using var services = AppTestServices.Create();
-        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Executor, new FakeUserPrompts());
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
         viewModel.Selected = viewModel.Profiles.First(p => p.Id == "dev");
 
         viewModel.AddActionCommand.Execute(null);

@@ -19,6 +19,10 @@ All request/response bodies are JSON. Operation endpoints return
 | GET | `/api/base` | The base: `{ actions: [...] }`, run before every profile with `includeBase` on. |
 | PUT | `/api/base` | Replace the base (body `{ actions: [...] }`). |
 | POST | `/api/base/run` | Run only the base now, record history (as profile id `base`), return the run. |
+| GET | `/api/library` | The global library: startable items (`id, name, type, target, arguments, runAsAdmin`). |
+| POST | `/api/library` | Add an item; its `id` is derived from `name` (400 without a name and target). |
+| PUT | `/api/library/{id}` | Create or replace the item with this id; linked actions start the new values. |
+| DELETE | `/api/library/{id}` | Delete an item (two-phase confirm); actions linked to it become standalone copies. |
 | GET | `/api/profiles` | All profiles as summaries (id, name, icon, action count, includeBase). |
 | GET | `/api/profiles/{id}` | One full profile including its actions (404 if unknown). |
 | POST | `/api/profiles` | Create a profile (body is a full profile; 409 if the id exists). |
@@ -34,6 +38,10 @@ The **base** is not a profile: it has no id, name, or launcher tile, only action
 (`POST /api/profiles/{id}/run`, the launcher, the tray, or the config window) runs the base actions
 first, as part of the same run, unless the profile has `"includeBase": false`. Profiles without the
 field include the base.
+
+An action with `"libraryItemId"` links to a **library item**: when it runs, the item supplies `type`,
+`target`, `arguments`, and `runAsAdmin` (its own `delay`, `failureBehaviour`, and `retryCount` still
+apply). The action's own values are the last-saved copy and are used if the item has been deleted.
 
 Deleting a profile follows a single-use, server-issued confirmation token. `DELETE /api/profiles/{id}`
 without a token returns `{ required: true, confirmToken, summary }`; resubmit as

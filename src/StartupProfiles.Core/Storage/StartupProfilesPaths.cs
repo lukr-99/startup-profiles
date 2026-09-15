@@ -23,6 +23,9 @@ public static class StartupProfilesPaths
     /// <summary>The base actions that run before every profile that includes them.</summary>
     public static string BaseFile => Path.Combine(DataDirectory, "base.json");
 
+    /// <summary>The global library of startable items that profile and base actions link to.</summary>
+    public static string LibraryFile => Path.Combine(DataDirectory, "library.json");
+
     /// <summary>The Windows startup entries Startup Profiles switched off at install, restored on uninstall.</summary>
     public static string StartupTakeoverFile => Path.Combine(DataDirectory, "startup-takeover.json");
 

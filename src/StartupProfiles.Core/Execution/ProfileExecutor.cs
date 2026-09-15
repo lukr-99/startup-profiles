@@ -6,8 +6,9 @@ namespace StartupProfiles.Core.Execution;
 /// <summary>
 /// Runs a profile and records the resulting <see cref="ProfileRun"/> to history. Single source of truth
 /// for "run then record", shared by the launcher, the config window, the API's run endpoint, and the tray -
-/// so it is also where the <see cref="StartupBase"/> is applied: a profile that includes the base runs the
-/// base actions first, as one run.
+/// so it is also where a profile is expanded into what actually runs: a profile that includes the
+/// <see cref="StartupBase"/> runs the base actions first, as one run, and actions linked to a
+/// <see cref="LibraryItem"/> start the item's current target.
 /// </summary>
 public sealed class ProfileExecutor
 {
@@ -17,12 +18,14 @@ public sealed class ProfileExecutor
     private readonly ProfileRunner _runner;
     private readonly IHistoryStore _history;
     private readonly IBaseStore _base;
+    private readonly ILibraryStore _library;
 
-    public ProfileExecutor(ProfileRunner runner, IHistoryStore history, IBaseStore baseStore)
+    public ProfileExecutor(ProfileRunner runner, IHistoryStore history, IBaseStore baseStore, ILibraryStore library)
     {
         _runner = runner;
         _history = history;
         _base = baseStore;
+        _library = library;
     }
 
     public Task<ProfileRun> RunAndRecordAsync(Profile profile, CancellationToken ct = default) =>
@@ -42,8 +45,13 @@ public sealed class ProfileExecutor
 
     private async Task<ProfileRun> RecordAsync(Profile profile, CancellationToken ct)
     {
-        var run = await _runner.RunAsync(profile, ct).ConfigureAwait(false);
+        var resolved = profile with { Actions = [.. profile.Actions.Select(ResolveLink)] };
+        var run = await _runner.RunAsync(resolved, ct).ConfigureAwait(false);
         _history.Append(run);
         return run;
     }
+
+    // A deleted item leaves the action's last-saved copy, which still runs.
+    private ProfileAction ResolveLink(ProfileAction action) =>
+        action.LibraryItemId is { } id && _library.Find(id) is { } item ? item.ApplyTo(action) : action;
 }

@@ -32,6 +32,8 @@ See [docs/API.md](../../docs/API.md) for the full endpoint table. Highlights:
 - `POST /api/profiles/{id}/run` - run a profile now; returns the run with per-action results.
 - `GET /api/base` - the base: actions that run before every profile with `includeBase` on (the
   default). Include them when describing what a profile launches.
+- `GET /api/library` - the global library. An action with `libraryItemId` starts that item's current
+  target and arguments, so look the item up rather than trusting the action's stored copy.
 - `GET /api/history` - recent runs and failed actions.
 
 Deleting a profile is two-phase: `DELETE /api/profiles/{id}` returns a `confirmToken`; resubmit as

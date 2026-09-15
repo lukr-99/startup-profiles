@@ -6,14 +6,19 @@ using System.Windows.Input;
 using StartupProfiles.App.Interaction;
 using StartupProfiles.App.Mvvm;
 using StartupProfiles.Core.Execution;
+using StartupProfiles.Core.Library;
 using StartupProfiles.Core.Models;
+using StartupProfiles.Core.Startup;
 using StartupProfiles.Core.Storage;
+using StartupProfiles.Core.Windows;
+using StartupProfiles.Windows;
 
 namespace StartupProfiles.App.Config;
 
 /// <summary>
-/// Drives the configuration window: the sidebar (the base pinned first, then the profiles) plus the editor
-/// for the selected row.
+/// Drives the configuration window: the sidebar (the base pinned first, then the profiles), the editor for
+/// the selected row, and the side panel it is filled from - Windows startup apps (Defaults) and the global
+/// library (Created, see <see cref="LibraryPanel"/>). Rows added from either link to a library item.
 /// </summary>
 public sealed class ConfigViewModel : ObservableObject
 {
@@ -26,6 +31,7 @@ public sealed class ConfigViewModel : ObservableObject
 
     private readonly IProfileStore _profiles;
     private readonly IBaseStore _base;
+    private readonly IStartupAppCatalog _startupCatalog;
     private readonly ProfileExecutor _executor;
     private readonly IUserPrompts _prompts;
 
@@ -43,14 +49,26 @@ public sealed class ConfigViewModel : ObservableObject
     private ActionEditor? _selectedAction;
     private string? _status;
 
-    public ConfigViewModel(IProfileStore profiles, IBaseStore baseStore, ProfileExecutor executor, IUserPrompts prompts)
+    public ConfigViewModel(
+        IProfileStore profiles,
+        IBaseStore baseStore,
+        LibraryService library,
+        IStartupAppCatalog startupCatalog,
+        ProfileExecutor executor,
+        IUserPrompts prompts)
     {
         _profiles = profiles;
         _base = baseStore;
+        _startupCatalog = startupCatalog;
         _executor = executor;
         _prompts = prompts;
 
+        Library = new LibraryPanel(library, prompts);
+        Library.ItemSaved += RelinkRows;
+        Library.ItemRemoved += UnlinkRows;
+
         NewCommand = new RelayCommand(_ => NewProfile());
+        RefreshStartupAppsCommand = new RelayCommand(_ => LoadStartupApps());
         ExportCommand = new RelayCommand(_ => Export());
         ImportCommand = new RelayCommand(_ => Import());
         _saveCommand = new RelayCommand(_ => Save(), _ => Editor is not null);
@@ -63,10 +81,17 @@ public sealed class ConfigViewModel : ObservableObject
         _moveDownCommand = new RelayCommand(_ => Move(1), _ => SelectedAction is not null);
 
         LoadList();
+        LoadStartupApps();
     }
 
     /// <summary>Sidebar rows: the base first (<see cref="ProfileListItem.IsBase"/>), then every profile.</summary>
     public ObservableCollection<ProfileListItem> Profiles { get; } = [];
+
+    /// <summary>The apps Windows has registered to start at login (on or off), except Startup Profiles itself.</summary>
+    public ObservableCollection<StartupAppItem> StartupApps { get; } = [];
+
+    /// <summary>The global library (the side panel's Created tab).</summary>
+    public LibraryPanel Library { get; }
 
     public ProfileListItem? Selected
     {
@@ -116,6 +141,138 @@ public sealed class ConfigViewModel : ObservableObject
     public ICommand MoveDownCommand => _moveDownCommand;
     public ICommand ExportCommand { get; }
     public ICommand ImportCommand { get; }
+    public ICommand RefreshStartupAppsCommand { get; }
+
+    /// <summary>
+    /// Adds a Windows startup app to the profile or base being edited, at <paramref name="index"/> (the row it
+    /// was dropped on) or at the end. The app goes into the library first, so the row links to it.
+    /// </summary>
+    public void AddStartupApp(StartupAppItem app, int? index = null)
+    {
+        if (Editor is null) return;
+        AddLibraryItem(Library.Keep(app.Name, app.Launch), index);
+    }
+
+    /// <summary>Adds a library item (dragged from the Created tab) as a linked row.</summary>
+    public void AddLibraryRow(LibraryItemRow row, int? index = null)
+    {
+        if (row.Id is { } id && Library.Find(id) is { } item) AddLibraryItem(item, index);
+    }
+
+    /// <summary>
+    /// Adds a row linked to <paramref name="item"/> at <paramref name="index"/> or at the end. If a row already
+    /// starts the same thing it is linked and selected instead of added twice. Kept once the editor is saved.
+    /// </summary>
+    public void AddLibraryItem(LibraryItem item, int? index = null)
+    {
+        if (Editor is null) return;
+
+        if (Editor.Actions.FirstOrDefault(a => a.LibraryItemId == item.Id || (!a.IsLinked && item.Starts(a.ToAction()))) is { } existing)
+        {
+            existing.LinkTo(item);
+            SelectedAction = existing;
+            Status = $"'{item.Name}' is already here.";
+            return;
+        }
+
+        var action = new ActionEditor();
+        action.LinkTo(item);
+        Editor.Actions.Insert(index is >= 0 and var i && i <= Editor.Actions.Count ? i : Editor.Actions.Count, action);
+        SelectedAction = action;
+        Status = $"Added '{item.Name}'. Save to keep it.";
+    }
+
+    /// <summary>Adds files or folders dropped from Explorer: each goes into the library and is linked here.</summary>
+    public void AddFiles(IEnumerable<string> paths, int? index = null)
+    {
+        if (Editor is null) return;
+        foreach (var path in paths)
+        {
+            var action = Startables.ActionForPath(path);
+            AddLibraryItem(Library.Keep(Startables.NameFor(action), action), index);
+            if (index is not null) index = Editor.Actions.IndexOf(SelectedAction!) + 1;
+        }
+    }
+
+    /// <summary>Moves a row dragged within the table so it lands above the row at <paramref name="index"/> (or last).</summary>
+    public void MoveAction(ActionEditor action, int? index)
+    {
+        if (Editor is null) return;
+        var from = Editor.Actions.IndexOf(action);
+        if (from < 0) return;
+
+        var target = index is >= 0 and var i && i < Editor.Actions.Count ? i : Editor.Actions.Count;
+        var to = target > from ? target - 1 : target;
+        if (to != from) Editor.Actions.Move(from, to);
+        SelectedAction = action;
+    }
+
+    /// <summary>
+    /// Saves a table row dragged into the Created tab to the library (reusing an item that starts the same thing)
+    /// and links the row to it.
+    /// </summary>
+    public void SaveActionToLibrary(ActionEditor action)
+    {
+        if (action.IsLinked && action.LibraryItemId is { } id)
+        {
+            Library.Selected = Library.Items.FirstOrDefault(r => r.Id == id);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(action.Target))
+        {
+            Library.Status = "That row has no target to save.";
+            return;
+        }
+
+        var snapshot = action.ToAction();
+        var item = Library.Keep(Startables.NameFor(snapshot), snapshot);
+        action.LinkTo(item);
+        Library.Status = $"Saved '{item.Name}'. The row now links to it.";
+        if (Editor?.Actions.Contains(action) == true) Status = "Row linked to the library. Save to keep the link.";
+    }
+
+    /// <summary>Saves a Windows startup app dragged into the Created tab to the library.</summary>
+    public void SaveStartupAppToLibrary(StartupAppItem app)
+    {
+        var item = Library.Keep(app.Name, app.Launch);
+        Library.Status = $"Saved '{item.Name}'.";
+    }
+
+    /// <summary>Saves files or folders dropped from Explorer into the Created tab to the library.</summary>
+    public void SaveFilesToLibrary(IEnumerable<string> paths)
+    {
+        var saved = paths.Select(path =>
+        {
+            var action = Startables.ActionForPath(path);
+            return Library.Keep(Startables.NameFor(action), action).Name;
+        }).ToList();
+        if (saved.Count > 0) Library.Status = $"Saved {string.Join(", ", saved)}.";
+    }
+
+    private void RelinkRows(LibraryItem item)
+    {
+        foreach (var row in Editor?.Actions.Where(a => a.LibraryItemId == item.Id) ?? []) row.LinkTo(item);
+    }
+
+    private void UnlinkRows(string id)
+    {
+        foreach (var row in Editor?.Actions.Where(a => a.LibraryItemId == id) ?? []) row.Unlink();
+    }
+
+    private void LoadStartupApps()
+    {
+        StartupApps.Clear();
+        var apps = _startupCatalog.GetEntries()
+            .Where(e => e.Launch is not null && !IsOwnEntry(e))
+            .Select(e => StartupAppItem.From(e, e.Launch!))
+            .OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase);
+        foreach (var app in apps) StartupApps.Add(app);
+    }
+
+    private static bool IsOwnEntry(StartupEntry entry) =>
+        entry.Source == StartupEntrySource.UserRunKey &&
+        string.Equals(entry.Key, WindowsStartupRegistration.DefaultValueName, StringComparison.OrdinalIgnoreCase);
 
     private void LoadList()
     {
@@ -129,8 +286,8 @@ public sealed class ConfigViewModel : ObservableObject
     {
         Editor = Selected switch
         {
-            { IsBase: true } => ProfileEditor.FromBase(_base.Load()),
-            { } item when _profiles.Find(item.Id) is { } profile => ProfileEditor.FromProfile(profile),
+            { IsBase: true } => ProfileEditor.FromBase(_base.Load(), Library.Find),
+            { } item when _profiles.Find(item.Id) is { } profile => ProfileEditor.FromProfile(profile, Library.Find),
             _ => null,
         };
         SelectedAction = null;

@@ -77,6 +77,7 @@ internal static class Program
     {
         var profiles = host.Services.GetRequiredService<IProfileStore>();
         var baseStore = host.Services.GetRequiredService<IBaseStore>();
+        var library = host.Services.GetRequiredService<Core.Library.LibraryService>();
         var executor = host.Services.GetRequiredService<ProfileExecutor>();
         var config = host.Services.GetRequiredService<IConfigStore>();
         var prompts = new UserPrompts();
@@ -97,7 +98,7 @@ internal static class Program
         }
 
         void OpenConfig() =>
-            new ConfigWindow(new ConfigViewModel(profiles, baseStore, executor, prompts),
+            new ConfigWindow(new ConfigViewModel(profiles, baseStore, library, new WindowsStartupAppCatalog(), executor, prompts),
                 ThemeManager.Parse(config.GetValue("theme")), ApplyTheme).Show();
 
         // At most one launcher: reopening it (tray, or launching the app again) brings the open one forward.
@@ -145,6 +146,8 @@ internal static class Program
 
         builder.Services.AddSingleton<IProfileStore>(_ => new ProfileStore());
         builder.Services.AddSingleton<IBaseStore>(_ => new BaseStore());
+        builder.Services.AddSingleton<ILibraryStore>(_ => new LibraryStore());
+        builder.Services.AddSingleton<Core.Library.LibraryService>();
         builder.Services.AddSingleton<IConfigStore>(_ => new ConfigStore());
         builder.Services.AddSingleton<IHistoryStore>(_ => new HistoryStore());
         builder.Services.AddSingleton(_ => WindowsRuntime.CreateActionRegistry());

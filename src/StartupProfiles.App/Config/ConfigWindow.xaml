@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:config="clr-namespace:StartupProfiles.App.Config"
         xmlns:ui="clr-namespace:StartupProfiles.App.Ui"
-        Title="Startup Profiles - Configuration" Height="640" Width="960"
-        MinHeight="480" MinWidth="820"
+        Title="Startup Profiles - Configuration" Height="720" Width="1240"
+        MinHeight="560" MinWidth="1060"
         Icon="pack://application:,,,/StartupProfiles;component/Assets/app.ico"
         WindowStartupLocation="CenterScreen" FontFamily="Segoe UI"
         Background="{DynamicResource App.Background}"
@@ -22,6 +22,7 @@
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="240" />
           <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="270" />
         </Grid.ColumnDefinitions>
 
         <!-- Sidebar -->
@@ -107,34 +108,67 @@
 
           <TextBlock Grid.Row="1" Text="Actions" FontWeight="SemiBold" Margin="0,10,0,6" />
 
-          <DataGrid Grid.Row="2" ItemsSource="{Binding Editor.Actions}" SelectedItem="{Binding SelectedAction}"
+          <!-- Rows reorder by dragging their grip. Apps, library items, and files from Explorer drop in here. -->
+          <DataGrid x:Name="ActionsGrid" Grid.Row="2" ItemsSource="{Binding Editor.Actions}" SelectedItem="{Binding SelectedAction}"
                     AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column"
-                    CanUserSortColumns="False" CanUserReorderColumns="False">
+                    CanUserSortColumns="False" CanUserReorderColumns="False"
+                    AllowDrop="True" DragEnter="OnActionsDragOver" DragOver="OnActionsDragOver"
+                    DragLeave="OnActionsDragLeave" Drop="OnActionsDrop"
+                    PreviewMouseLeftButtonDown="OnActionsMouseDown" PreviewMouseMove="OnDragSourceMouseMove"
+                    BeginningEdit="OnActionsBeginningEdit">
             <DataGrid.Columns>
-              <!-- The app's shell icon (exe, shortcut, or packaged app), as on Windows' Startup apps page. -->
-              <DataGridTemplateColumn Width="40" CanUserResize="False" IsReadOnly="True">
+              <!-- Drag grip, then the app's shell icon (as on Windows' Startup apps page) with a badge when the
+                   row links to a library item. -->
+              <DataGridTemplateColumn Width="62" CanUserResize="False" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
-                    <Image Width="20" Height="20" Stretch="Uniform" HorizontalAlignment="Center"
-                           RenderOptions.BitmapScalingMode="HighQuality">
-                      <Image.Source>
-                        <MultiBinding Converter="{StaticResource ActionIcon}">
-                          <Binding Path="Type" />
-                          <Binding Path="Target" />
-                          <Binding Path="Arguments" />
-                        </MultiBinding>
-                      </Image.Source>
-                    </Image>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                      <Border Tag="DragHandle" Background="Transparent" Cursor="SizeAll" Padding="6,8,4,8"
+                              ToolTip="Drag to reorder, or into Created to save it to the library">
+                        <TextBlock Text="&#xE76F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12"
+                                   Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
+                      </Border>
+                      <Grid Width="22" Height="22" Margin="2,0,0,0">
+                        <Image Width="20" Height="20" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality">
+                          <Image.Source>
+                            <MultiBinding Converter="{StaticResource ActionIcon}">
+                              <Binding Path="Type" />
+                              <Binding Path="Target" />
+                              <Binding Path="Arguments" />
+                            </MultiBinding>
+                          </Image.Source>
+                        </Image>
+                        <Border Width="13" Height="13" CornerRadius="7" Background="{DynamicResource App.Accent}"
+                                HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-4,-4"
+                                Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}}"
+                                ToolTip="Linked to the library - change what it starts in Created">
+                          <TextBlock Text="&#xE71B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="8"
+                                     Foreground="{DynamicResource App.OnAccent}"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                      </Grid>
+                    </StackPanel>
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
-              <DataGridComboBoxColumn Header="Type" Width="122"
+              <DataGridComboBoxColumn Header="Type" Width="112"
                                       ItemsSource="{x:Static config:ActionEditor.ActionTypes}"
                                       SelectedItemBinding="{Binding Type}"
                                       EditingElementStyle="{StaticResource App.GridComboEditor}" />
-              <DataGridTextColumn Header="Target" Width="*" Binding="{Binding Target}"
-                                  ElementStyle="{StaticResource App.GridTextDisplay}"
-                                  EditingElementStyle="{StaticResource App.GridTextEditor}" />
+              <!-- A linked row shows its library item's name; its path is edited in Created. -->
+              <DataGridTemplateColumn Header="Target" Width="*">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding TargetDisplay}" Style="{StaticResource App.GridTextDisplay}"
+                               ToolTip="{Binding Target}" ToolTipService.IsEnabled="{Binding IsLinked}" />
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+                <DataGridTemplateColumn.CellEditingTemplate>
+                  <DataTemplate>
+                    <TextBox Text="{Binding Target}" Style="{StaticResource App.GridTextEditor}" Loaded="OnGridEditorLoaded" />
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellEditingTemplate>
+              </DataGridTemplateColumn>
               <DataGridTextColumn Header="Arguments" Width="*" Binding="{Binding Arguments}"
                                   ElementStyle="{StaticResource App.GridTextDisplay}"
                                   EditingElementStyle="{StaticResource App.GridTextEditor}" />
@@ -156,7 +190,8 @@
 
           <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,0">
             <Button Content="+ Add" Command="{Binding AddActionCommand}" Padding="10,4" Margin="0,0,8,0" />
-            <Button Content="Remove" Command="{Binding RemoveActionCommand}" Padding="10,4" Margin="0,0,8,0" />
+            <Button Content="Remove row" Command="{Binding RemoveActionCommand}" Padding="10,4" Margin="0,0,8,0"
+                    ToolTip="Remove the selected row (or press Delete). Save to keep the change." />
             <Button Content="Move up" Command="{Binding MoveUpCommand}" Padding="10,4" Margin="0,0,8,0" />
             <Button Content="Move down" Command="{Binding MoveDownCommand}" Padding="10,4" />
           </StackPanel>
@@ -165,13 +200,140 @@
             <Button Content="Save" Command="{Binding SaveCommand}" Style="{StaticResource App.AccentButton}"
                     Margin="0,0,8,0" />
             <Button Content="Run now" Command="{Binding RunCommand}" Padding="12,7" Margin="0,0,8,0" />
-            <Button Content="Delete" Command="{Binding DeleteCommand}" Padding="12,7"
+            <Button Content="Delete profile" Command="{Binding DeleteCommand}" Padding="12,7"
                     Foreground="{DynamicResource App.Danger}"
                     Visibility="{Binding Editor.IsProfile, Converter={StaticResource BoolToVis}}" />
             <TextBlock Text="{Binding Status}" Foreground="{DynamicResource App.Muted}"
                        VerticalAlignment="Center" Margin="12,0,0,0" />
           </StackPanel>
         </Grid>
+
+        <!-- Side panel: Defaults (Windows startup apps) and Created (the global library). Drag from either into
+             the actions table; rows added from either link to a library item. -->
+        <Border Grid.Column="2" Background="{DynamicResource App.Surface}">
+          <TabControl>
+            <TabItem Header="Defaults">
+              <DockPanel>
+                <DockPanel DockPanel.Dock="Top" Margin="12,8,12,2">
+                  <Button Content="Refresh" Command="{Binding RefreshStartupAppsCommand}" DockPanel.Dock="Right"
+                          Padding="8,3" VerticalAlignment="Top" ToolTip="Read the startup apps from Windows again" />
+                  <TextBlock Text="Apps Windows starts at login. Drag one into a table (it is kept in Created), or double-click it."
+                             FontSize="11" Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,0,8,0" />
+                </DockPanel>
+                <ListBox x:Name="StartupAppsList" ItemsSource="{Binding StartupApps}" Margin="6"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         PreviewMouseLeftButtonDown="OnStartupAppsMouseDown" PreviewMouseMove="OnDragSourceMouseMove"
+                         MouseDoubleClick="OnStartupAppsDoubleClick">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <DockPanel Cursor="SizeAll" Background="Transparent" ToolTip="{Binding Launch.Target}">
+                        <Image DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,10,0" VerticalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality">
+                          <Image.Source>
+                            <MultiBinding Converter="{StaticResource ActionIcon}">
+                              <Binding Path="Launch.Type" />
+                              <Binding Path="Launch.Target" />
+                              <Binding Path="Launch.Arguments" />
+                            </MultiBinding>
+                          </Image.Source>
+                        </Image>
+                        <StackPanel>
+                          <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource App.Muted}"
+                                     TextTrimming="CharacterEllipsis" Margin="0,1,0,0" />
+                        </StackPanel>
+                      </DockPanel>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Created">
+              <DockPanel>
+                <DockPanel DockPanel.Dock="Top" Margin="12,8,12,2">
+                  <Button Content="+ New" Command="{Binding Library.NewCommand}" DockPanel.Dock="Right"
+                          Padding="8,3" VerticalAlignment="Top" />
+                  <TextBlock Text="Set things up once, then drag them into any table. Drop table rows, defaults, or files from Explorer here to keep them."
+                             FontSize="11" Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,0,8,0" />
+                </DockPanel>
+
+                <!-- Form for the selected (or new) library item. -->
+                <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource App.Border}" BorderThickness="0,1,0,0"
+                        Padding="12,8,12,12" Visibility="{Binding Library.HasDraft, Converter={StaticResource BoolToVis}}">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="72" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="Name" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Margin="0,3"
+                             Text="{Binding Library.Draft.Name, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Grid.Row="1" Text="Type" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
+                    <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,3"
+                              ItemsSource="{x:Static config:ActionEditor.ActionTypes}"
+                              SelectedItem="{Binding Library.Draft.Type}" />
+                    <TextBlock Grid.Row="2" Text="Target" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Margin="0,3"
+                             Text="{Binding Library.Draft.Target, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Grid.Row="3" Text="Arguments" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="3" Grid.Column="1" Margin="0,3"
+                             Text="{Binding Library.Draft.Arguments, UpdateSourceTrigger=PropertyChanged}" />
+                    <CheckBox Grid.Row="4" Grid.Column="1" Content="Run as admin" Margin="0,6,0,2"
+                              IsChecked="{Binding Library.Draft.RunAsAdmin}" />
+                    <TextBlock Grid.Row="5" Grid.ColumnSpan="2" Text="{Binding Library.UsedBy}" FontSize="11"
+                               Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                    <DockPanel Grid.Row="6" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                      <Button Content="Save" Command="{Binding Library.SaveCommand}" Style="{StaticResource App.AccentButton}" />
+                      <Button Content="Delete" Command="{Binding Library.DeleteCommand}" Margin="8,0,0,0" Padding="12,7"
+                              Foreground="{DynamicResource App.Danger}" />
+                      <TextBlock Text="{Binding Library.Status}" Foreground="{DynamicResource App.Muted}" FontSize="11"
+                                 TextWrapping="Wrap" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    </DockPanel>
+                  </Grid>
+                </Border>
+
+                <ListBox x:Name="LibraryList" ItemsSource="{Binding Library.Items}" SelectedItem="{Binding Library.Selected}"
+                         Margin="6" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AllowDrop="True"
+                         PreviewMouseLeftButtonDown="OnLibraryMouseDown" PreviewMouseMove="OnDragSourceMouseMove"
+                         MouseDoubleClick="OnLibraryDoubleClick"
+                         DragEnter="OnLibraryDragOver" DragOver="OnLibraryDragOver" DragLeave="OnLibraryDragLeave"
+                         Drop="OnLibraryDrop">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <DockPanel Cursor="SizeAll" Background="Transparent" ToolTip="{Binding Target}">
+                        <Image DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,10,0" VerticalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality">
+                          <Image.Source>
+                            <MultiBinding Converter="{StaticResource ActionIcon}">
+                              <Binding Path="Type" />
+                              <Binding Path="Target" />
+                              <Binding Path="Arguments" />
+                            </MultiBinding>
+                          </Image.Source>
+                        </Image>
+                        <StackPanel>
+                          <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding Type}" FontSize="11" Foreground="{DynamicResource App.Muted}"
+                                     TextTrimming="CharacterEllipsis" Margin="0,1,0,0" />
+                        </StackPanel>
+                      </DockPanel>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </DockPanel>
+            </TabItem>
+          </TabControl>
+        </Border>
       </Grid>
     </TabItem>
 

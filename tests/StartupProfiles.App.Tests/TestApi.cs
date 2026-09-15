@@ -59,6 +59,8 @@ internal sealed class TestApi : IAsyncDisposable
         builder.Services.AddSingleton<IProfileStore>(_ => new ProfileStore(profilesFile));
         builder.Services.AddSingleton<IHistoryStore>(_ => new HistoryStore(historyFile));
         builder.Services.AddSingleton<IBaseStore>(_ => new BaseStore(baseFile));
+        builder.Services.AddSingleton<ILibraryStore>(_ => new LibraryStore(baseFile + ".library"));
+        builder.Services.AddSingleton<Core.Library.LibraryService>();
         builder.Services.AddSingleton(_ => ActionHandlerRegistry.CreateDefault(new SystemProcessLauncher()));
         builder.Services.AddSingleton(sp => new ProfileRunner(sp.GetRequiredService<ActionHandlerRegistry>(), new TaskDelayer()));
         builder.Services.AddSingleton<ProfileExecutor>();
@@ -83,5 +85,6 @@ internal sealed class TestApi : IAsyncDisposable
         File.Delete(_profilesFile);
         File.Delete(_historyFile);
         File.Delete(_baseFile);
+        File.Delete(_baseFile + ".library");
     }
 }

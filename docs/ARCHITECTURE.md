@@ -273,6 +273,16 @@ therefore stops the profile too). `RunBaseAndRecordAsync` runs the base alone, r
 `base`. The config window pins the base above the profiles in its sidebar and reuses the action editor
 for it; the API exposes `GET`/`PUT /api/base` and `POST /api/base/run`.
 
+Library: `Models/LibraryItem` is a named startable (type, target, arguments, admin) kept once in
+`library.json` (`ILibraryStore` / `LibraryStore`). A `ProfileAction` links to one through
+`LibraryItemId`; `ProfileExecutor` resolves links when it expands a profile (after prepending the base),
+taking what to start from the item and how to run it from the action, and falls back to the action's
+stored copy if the item is gone. `Core/Library/LibraryService` assigns unique slug ids, reuses an item
+that starts the same thing (`FindOrAdd`), reports usage, and on delete rewrites links as standalone
+copies. The config window's side panel (Defaults = Windows startup apps, Created = the library) is the
+drag source for the action tables; the API exposes `GET`/`POST /api/library` and `PUT`/`DELETE
+/api/library/{id}` (delete is two-phase).
+
 ## Future ideas (not scheduled)
 
 Keyboard shortcuts per profile - Start-menu launch - profile chaining - scheduled profiles -

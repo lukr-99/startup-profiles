@@ -46,6 +46,50 @@ public sealed class ApiEndpointsTests
     }
 
     [Fact]
+    public async Task Library_CreateUpdateList_RoundTrips()
+    {
+        await using var api = await TestApi.StartAsync();
+
+        var created = await api.Client.PostAsJsonAsync("/api/library",
+            new LibraryItem { Name = "Steam", Target = @"C:\Steam\steam.exe" }, TestApi.Json);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var item = await created.Content.ReadFromJsonAsync<LibraryItem>(TestApi.Json);
+        Assert.Equal("steam", item!.Id);
+
+        var updated = await api.Client.PutAsJsonAsync("/api/library/steam", item with { Arguments = "-silent" }, TestApi.Json);
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+
+        var list = await api.Client.GetFromJsonAsync<List<LibraryItem>>("/api/library", TestApi.Json);
+        Assert.Equal("-silent", Assert.Single(list!).Arguments);
+    }
+
+    [Fact]
+    public async Task Library_CreateWithoutTarget_IsRejected()
+    {
+        await using var api = await TestApi.StartAsync();
+
+        var response = await api.Client.PostAsJsonAsync("/api/library", new LibraryItem { Name = "Nothing" }, TestApi.Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Library_Delete_RequiresConfirmationToken()
+    {
+        await using var api = await TestApi.StartAsync();
+        await api.Client.PostAsJsonAsync("/api/library", new LibraryItem { Name = "Steam", Target = "steam.exe" }, TestApi.Json);
+
+        var first = await api.Client.DeleteAsync("/api/library/steam");
+        var body = await first.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.GetProperty("required").GetBoolean());
+
+        var confirmed = await api.Client.DeleteAsync($"/api/library/steam?confirmToken={body.GetProperty("confirmToken").GetString()}");
+        Assert.True((await confirmed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("ok").GetBoolean());
+
+        Assert.Empty((await api.Client.GetFromJsonAsync<List<LibraryItem>>("/api/library", TestApi.Json))!);
+    }
+
+    [Fact]
     public async Task Profiles_List_ReportsIncludeBase()
     {
         await using var api = await TestApi.StartAsync();

@@ -20,11 +20,11 @@ dotnet test StartupProfiles.slnx -c Release
 dotnet format StartupProfiles.slnx --verify-no-changes
 ```
 
-- Build is clean (0 warnings, warnings-as-errors on) and 144 tests pass.
+- Build is clean (0 warnings, warnings-as-errors on) and 166 tests pass.
 - Run the app: `dotnet run --project src/StartupProfiles.App` (add `--headless` for the API only,
   `--port N` to override the port, default 8790).
 - Data lives in `%APPDATA%\StartupProfiles` (`profiles.json`, `config.json`, `history.json`,
-  `endpoint.json`, `startup-takeover.json`, `base.json`). Nothing leaves the machine.
+  `endpoint.json`, `startup-takeover.json`, `base.json`, `library.json`). Nothing leaves the machine.
 
 ## What exists
 
@@ -154,6 +154,41 @@ packaged apps, the Squirrel `Update.exe --processStart X.exe` app, `.url` for UR
 kills, services, inline commands) and `ShellIcons` loads it via `SHParseDisplayName` + `SHGetFileInfo`,
 cached per source. Known gap: app execution aliases (e.g. Teams' `WindowsApps\...\ms-teams.exe` Run
 value) show a generic icon.
+
+## Side panel, global library, and drag and drop (done)
+
+The config window's Profiles tab has a right-hand panel with two tabs:
+
+- **Defaults** - every launchable `IStartupAppCatalog` entry (on or off, except Startup Profiles itself),
+  sorted by name, with its shell icon and "Registry / Startup folder / Store app · starts with Windows /
+  off in Windows". Catalog names use the exe's file description, as Task Manager does ("Microsoft Edge"
+  instead of `MicrosoftEdgeAutoLaunch_...`), except Squirrel's shared `Update.exe`.
+- **Created** - the global library (`LibraryItem` in `library.json` via `ILibraryStore`; operations in
+  `Core/Library/LibraryService`): startable items set up once, with a form to add (+ New), edit, and
+  delete them (`App/Config/LibraryPanel`).
+
+Profile and base actions **link** to library items (`ProfileAction.LibraryItemId`, owner's choice over
+copying): `ProfileExecutor` resolves the link at run time (the item supplies type/target/arguments/admin;
+delay/failure/retries stay per row), and the stored values are a last-saved copy used if the item is gone.
+Deleting an item (`LibraryService.Remove`, confirmed with the list of profiles using it) rewrites its links
+as standalone copies. In the table a linked row shows the item's name and an accent link badge, and its
+Type/Target/Arguments/Admin cells refuse edits (edit the item in Created instead); saving an item relinks
+open rows.
+
+Drag and drop (view plumbing in `ConfigWindow.xaml.cs`, behaviour in `ConfigViewModel`):
+
+- Defaults item -> table: kept in the library (`LibraryService.FindOrAdd` reuses an item that starts the
+  same thing) and added as a linked row. Created item -> table: linked row. Double-click does the same.
+- Row grip -> table: reorder (`MoveAction`, lands above the drop row). Row grip -> Created: saved to the
+  library and the row linked (`SaveActionToLibrary`; name from `Startables.NameFor`).
+- Defaults item or Explorer files/folders -> Created: saved. Explorer files -> table: saved and linked
+  (`.exe` -> LaunchApp, folder -> OpenFolder, else OpenFile).
+- Dropping on a row inserts above it, elsewhere appends; an item already in the table is selected (and
+  linked) instead of added twice. Table changes persist on Save; library changes persist immediately.
+
+Not yet: the install-time startup takeover still adds standalone copies to Everything (drag those rows
+into Created to link them), and profile export/import does not include the library. The drag gestures
+are verified by view-model tests and offscreen rendering, not UI automation.
 
 ## Next
 
