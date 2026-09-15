@@ -53,6 +53,21 @@ public sealed class WindowsStartupAppCatalogTests : IDisposable
     }
 
     [Fact]
+    public void GetEntries_NamesRunEntriesByTheExeDescription_WhenItHasOne()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var cmd = Path.Combine(Environment.SystemDirectory, "cmd.exe");
+        SetValue(UserPath, RunPath, "cmd-autostart_1234", $"\"{cmd}\" /k");
+        SetValue(UserPath, RunPath, "Missing", @"C:\Nope\missing.exe");
+
+        var entries = WithCatalog(c => c.GetEntries());
+
+        Assert.Equal(System.Diagnostics.FileVersionInfo.GetVersionInfo(cmd).FileDescription, Find(entries, "cmd-autostart_1234").Name);
+        Assert.Equal("Missing", Find(entries, "Missing").Name);
+    }
+
+    [Fact]
     public void GetEntries_MarksAllUsersEntries_AsNotToggleable()
     {
         if (!OperatingSystem.IsWindows()) return;

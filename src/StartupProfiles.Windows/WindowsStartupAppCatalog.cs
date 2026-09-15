@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security;
 using Microsoft.Win32;
 using StartupProfiles.Core.Models;
@@ -96,18 +97,41 @@ public sealed class WindowsStartupAppCatalog : IStartupAppCatalog
         foreach (var name in run.GetValueNames())
         {
             if (name.Length == 0 || run.GetValue(name) is not string command) continue;
+            var launch = StartupCommandLine.ToLaunchAction(command);
             entries.Add(new StartupEntry
             {
                 Source = source,
                 Key = name,
-                Name = name,
+                Name = DescribedName(launch, name),
                 IsEnabled = StartupApprovedFlag.IsEnabled(approved, name),
                 CanToggle = canToggle,
-                Launch = StartupCommandLine.ToLaunchAction(command),
+                Launch = launch,
             });
         }
 
         return entries;
+    }
+
+    /// <summary>
+    /// The exe's file description, which is what Task Manager shows ("Microsoft Edge" rather than
+    /// "MicrosoftEdgeAutoLaunch_DC0A..."), falling back to the registry value name. Squirrel's shared
+    /// Update.exe describes itself as "Update", so it keeps the value name.
+    /// </summary>
+    private static string DescribedName(ProfileAction? launch, string valueName)
+    {
+        if (launch is null || !File.Exists(launch.Target) ||
+            string.Equals(Path.GetFileName(launch.Target), "Update.exe", StringComparison.OrdinalIgnoreCase))
+            return valueName;
+
+        try
+        {
+            var description = FileVersionInfo.GetVersionInfo(launch.Target).FileDescription;
+            return string.IsNullOrWhiteSpace(description) ? valueName : description.Trim();
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or IOException or UnauthorizedAccessException)
+        {
+            return valueName;
+        }
     }
 
     private static List<StartupEntry> FolderEntries(
