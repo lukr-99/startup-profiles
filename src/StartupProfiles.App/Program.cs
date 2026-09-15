@@ -46,9 +46,14 @@ internal static class Program
 
         var options = LaunchOptions.Parse(args);
 
-        // Single instance: a second launch just exits.
-        using var mutex = new Mutex(initiallyOwned: true, "StartupProfiles.Local.SingleInstance", out var isNew);
-        if (!isNew) return;
+        // Single instance: a later launch (e.g. from the Start Menu while the app sits in the tray) asks the
+        // running instance to show its launcher, then exits.
+        using var instance = new SingleInstance();
+        if (!instance.IsFirst)
+        {
+            instance.SignalFirst();
+            return;
+        }
 
         var host = BuildHost(options);
         host.StartAsync().GetAwaiter().GetResult();
@@ -59,7 +64,7 @@ internal static class Program
             if (options.Headless)
                 host.WaitForShutdownAsync().GetAwaiter().GetResult();
             else
-                RunUi(host);
+                RunUi(host, instance);
         }
         finally
         {
@@ -68,7 +73,7 @@ internal static class Program
         }
     }
 
-    private static void RunUi(WebApplication host)
+    private static void RunUi(WebApplication host, SingleInstance instance)
     {
         var profiles = host.Services.GetRequiredService<IProfileStore>();
         var baseStore = host.Services.GetRequiredService<IBaseStore>();
@@ -95,13 +100,28 @@ internal static class Program
             new ConfigWindow(new ConfigViewModel(profiles, baseStore, executor, prompts),
                 ThemeManager.Parse(config.GetValue("theme")), ApplyTheme).Show();
 
-        void OpenLauncher() =>
-            new LauncherWindow(new LauncherViewModel(profiles, executor), OpenConfig).Show();
+        // At most one launcher: reopening it (tray, or launching the app again) brings the open one forward.
+        LauncherWindow? launcher = null;
+        void OpenLauncher()
+        {
+            if (launcher is not null)
+            {
+                if (launcher.WindowState == WindowState.Minimized) launcher.WindowState = WindowState.Normal;
+                launcher.Activate();
+                return;
+            }
+
+            launcher = new LauncherWindow(new LauncherViewModel(profiles, executor), OpenConfig);
+            launcher.Closed += (_, _) => launcher = null;
+            launcher.Show();
+        }
 
         using var tray = new TrayIcon(profiles, executor, OpenConfig, OpenLauncher, app.Shutdown);
 
-        // Show the login selector at startup; the app then lives in the tray.
+        // Show the login selector at startup; the app then lives in the tray. Launching the app again while
+        // it runs shows the launcher.
         OpenLauncher();
+        instance.Listen(() => app.Dispatcher.BeginInvoke(OpenLauncher));
 
         app.Run();
     }
