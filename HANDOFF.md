@@ -4,7 +4,7 @@ Snapshot of Windows Startup Profiles as of 2026-08-31. For the full design see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); for conventions see [AGENTS.md](AGENTS.md) and
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Status: Milestones 1-5, installer, release CI, UI polish done; conditions next
+## Status: Milestones 1-5, installer, release CI, UI polish, startup takeover done; conditions next
 
 The app runs today: launch it and a WPF login selector appears; pick a context and it launches that
 profile's actions, then lives in the tray. Profiles are editable in the config window. A loopback HTTP
@@ -20,11 +20,11 @@ dotnet test StartupProfiles.slnx -c Release
 dotnet format StartupProfiles.slnx --verify-no-changes
 ```
 
-- Build is clean (0 warnings, warnings-as-errors on) and 37 tests pass.
+- Build is clean (0 warnings, warnings-as-errors on) and 113 tests pass.
 - Run the app: `dotnet run --project src/StartupProfiles.App` (add `--headless` for the API only,
   `--port N` to override the port, default 8790).
 - Data lives in `%APPDATA%\StartupProfiles` (`profiles.json`, `config.json`, `history.json`,
-  `endpoint.json`). Nothing leaves the machine.
+  `endpoint.json`, `startup-takeover.json`). Nothing leaves the machine.
 
 ## What exists
 
@@ -79,8 +79,30 @@ Login/protocol registration is done by invoking the app's own maintenance comman
 (`StartupProfiles.exe --register-login` / `--register-protocol`), which run the
 `IStartupRegistration` / `IProtocolRegistration` Windows adapters. `install/uninstall.ps1` reverses it
 all (registry keys removed directly so it works even if the exe is gone; `-PurgeData` also deletes
-`%APPDATA%\StartupProfiles`). Switches: `-Port`, `-FrameworkDependent`, `-NoStartup`, `-NoProtocol`,
-`-NoSkill`.
+`%APPDATA%\StartupProfiles`). Switches: `-Port`, `-FrameworkDependent`, `-NoStartup`,
+`-KeepStartupApps`, `-NoProtocol`, `-NoSkill`.
+
+## Startup takeover (done)
+
+The app reads what Windows starts at login through `IStartupAppCatalog` /
+`WindowsStartupAppCatalog`: the per-user and all-users `Run` keys (incl. WOW6432Node), both Startup
+folders, and packaged apps' startup tasks (`SystemAppData\<family>\<task>` `State`, app id resolved
+from the package's AppxManifest.xml). On/off state comes from the `Explorer\StartupApproved` flags
+(even first byte = on, odd = off) and the task `State` (2 on, 1 off). `StartupCommandLine` turns a
+`Run` value into a `LaunchApp` action (quoted or unquoted-with-spaces paths); Startup folder items
+become `OpenFile` on the shortcut; packaged tasks become `explorer.exe shell:AppsFolder\<family>!<app>`.
+
+`StartupTakeover` (Core) is the install default: every enabled, per-user-switchable, launchable entry
+(except the launcher's own `Run` value) is appended to the Everything profile (deduped, recreated if
+deleted), recorded in `startup-takeover.json`, then switched off. All-users and policy-locked entries
+need admin and are left on. `Restore` switches the recorded entries back on. Maintenance commands:
+`--list-startup` (read-only report), `--take-over-startup` (install.ps1, unless `-KeepStartupApps` /
+`-NoStartup`), `--restore-startup` (uninstall.ps1). `--register-login` now also clears a Task Manager
+"disabled" flag on the launcher's own entry.
+
+Known wrinkles: packaged apps launched from a profile open normally rather than via their minimized
+startup activation, and an app registered both ways (e.g. Teams: a `Run` value and a packaged task)
+gets two launch actions.
 
 ## Releases
 

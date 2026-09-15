@@ -255,6 +255,15 @@ the agent skill; login and protocol registration are delegated to the app's own 
 and `IProtocolRegistration` adapters so the registry formats stay owned by the app. `App/Maintenance`
 holds the command parse/dispatch (`MaintenanceCommand` / `MaintenanceCommands`).
 
+Startup takeover: `Core/Windows/IStartupAppCatalog` is the seam for reading and switching the OS's own
+startup entries; `StartupProfiles.Windows/WindowsStartupAppCatalog` reads the same sources as Task
+Manager (per-user and all-users `Run` keys, both Startup folders, packaged startup tasks) and switches
+per-user entries via the `StartupApproved` flags / task `State`, never deleting a registration.
+`Core/Startup/StartupTakeover` implements the install default - move every enabled, switchable startup
+app into the Everything profile, record it (`IStartupTakeoverStore`, `startup-takeover.json`), switch it
+off - and the uninstall `Restore`. The installer drives it through `--take-over-startup` /
+`--restore-startup`; `--list-startup` prints the catalog.
+
 ## Future ideas (not scheduled)
 
 Keyboard shortcuts per profile - Start-menu launch - profile chaining - scheduled profiles -

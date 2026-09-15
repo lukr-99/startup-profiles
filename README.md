@@ -120,9 +120,17 @@ at login, registers the `startupprofiles://` protocol, and installs the Claude a
 .\install\install.ps1
 ```
 
+Install also **takes over Windows startup**: every startup app that is currently on (per-user `Run`
+key, your Startup folder, and packaged Store-app startup tasks) is added to the **Everything** profile
+and switched off in Windows - the same reversible switch Task Manager uses - so Startup Profiles is the
+one app that starts at login. All-users entries need admin, so they are left on. To see what it would
+pick up, run `StartupProfiles.exe --list-startup`.
+
 Useful switches: `-FrameworkDependent` (smaller build, needs the .NET 10 Desktop Runtime),
-`-NoStartup` (don't run at login), `-NoProtocol`, `-NoSkill`, `-Port <n>`. Remove everything with
-`.\install\uninstall.ps1` (add `-PurgeData` to also delete your profiles).
+`-KeepStartupApps` (leave existing startup apps alone), `-NoStartup` (don't run at login; implies
+`-KeepStartupApps`), `-NoProtocol`, `-NoSkill`, `-Port <n>`. Remove everything with
+`.\install\uninstall.ps1`, which switches the taken-over startup apps back on (add `-PurgeData` to
+also delete your profiles).
 
 ## License
 

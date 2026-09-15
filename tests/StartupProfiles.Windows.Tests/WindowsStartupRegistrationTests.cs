@@ -10,13 +10,14 @@ namespace StartupProfiles.Windows.Tests;
 public sealed class WindowsStartupRegistrationTests : IDisposable
 {
     private readonly string _keyPath = $@"Software\StartupProfilesTests\{Guid.NewGuid():N}\Run";
+    private readonly string _approvedPath = $@"Software\StartupProfilesTests\{Guid.NewGuid():N}\StartupApproved\Run";
 
     [Fact]
     public void EnableThenDisable_RoundTripsRunKeyValue()
     {
         if (!OperatingSystem.IsWindows()) return;
 
-        var registration = new WindowsStartupRegistration("StartupProfilesTest", _keyPath);
+        var registration = new WindowsStartupRegistration("StartupProfilesTest", _keyPath, _approvedPath);
 
         Assert.False(registration.IsEnabled());
 
@@ -32,9 +33,28 @@ public sealed class WindowsStartupRegistrationTests : IDisposable
     {
         if (!OperatingSystem.IsWindows()) return;
 
-        var registration = new WindowsStartupRegistration("StartupProfilesTest", _keyPath);
+        var registration = new WindowsStartupRegistration("StartupProfilesTest", _keyPath, _approvedPath);
         registration.Enable("cmd1");
         registration.Enable("cmd2");
+
+        Assert.True(registration.IsEnabled());
+    }
+
+    [Fact]
+    public void Enable_ClearsAFlagThatSwitchedTheLauncherOff()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var registration = new WindowsStartupRegistration("StartupProfilesTest", _keyPath, _approvedPath);
+        registration.Enable("cmd");
+        using (var approved = Registry.CurrentUser.CreateSubKey(_approvedPath))
+        {
+            approved.SetValue("StartupProfilesTest", new byte[] { 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, RegistryValueKind.Binary);
+        }
+
+        Assert.False(registration.IsEnabled());
+
+        registration.Enable("cmd");
 
         Assert.True(registration.IsEnabled());
     }

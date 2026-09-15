@@ -8,4 +8,7 @@ public enum MaintenanceCommand
     UnregisterLogin,
     RegisterProtocol,
     UnregisterProtocol,
+    ListStartup,
+    TakeOverStartup,
+    RestoreStartup,
 }

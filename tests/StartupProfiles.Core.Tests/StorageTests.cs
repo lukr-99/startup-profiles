@@ -1,5 +1,6 @@
 using StartupProfiles.Core.Execution;
 using StartupProfiles.Core.Models;
+using StartupProfiles.Core.Startup;
 using StartupProfiles.Core.Storage;
 
 namespace StartupProfiles.Core.Tests;
@@ -133,6 +134,38 @@ public sealed class StorageTests
 
             Assert.Equal("dev", recent[0].ProfileId);
             Assert.Equal("work", recent[1].ProfileId);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public void StartupTakeoverStore_SaveReloadClear_RoundTripsEntries()
+    {
+        var file = TempFile();
+        try
+        {
+            var entry = new StartupEntry
+            {
+                Source = StartupEntrySource.PackagedTask,
+                Key = @"MSTeams_8wekyb3d8bbwe\TeamsTfwStartupTask",
+                Name = "Microsoft Teams",
+                IsEnabled = true,
+                CanToggle = true,
+                Launch = new ProfileAction { Type = ActionType.LaunchApp, Target = "explorer.exe", Arguments = "shell:AppsFolder\\x!y" },
+            };
+
+            new StartupTakeoverStore(file).Save([entry]);
+            var reloaded = Assert.Single(new StartupTakeoverStore(file).Load());
+
+            Assert.Equal(StartupEntrySource.PackagedTask, reloaded.Source);
+            Assert.Equal(entry.Key, reloaded.Key);
+            Assert.Equal("explorer.exe", reloaded.Launch!.Target);
+
+            new StartupTakeoverStore(file).Clear();
+            Assert.Empty(new StartupTakeoverStore(file).Load());
         }
         finally
         {

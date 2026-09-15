@@ -8,8 +8,14 @@
     Menu shortcut, registers the launcher to run at login, registers the startupprofiles:// protocol,
     and installs the Claude agent skill to %USERPROFILE%\.claude\skills. All state is per-user.
 
-    Login and protocol registration are performed by the app itself (StartupProfiles.exe
-    --register-login / --register-protocol) so the registry formats stay owned by the app's seams.
+    Unless -KeepStartupApps (or -NoStartup) is given, it then takes over Windows startup: every startup
+    app that is currently on and can be switched per-user is added to the Everything profile and switched
+    off in Windows (reversibly, exactly like Task Manager), so Startup Profiles is the one app that starts
+    at login. All-users entries (which need admin) are left on. uninstall.ps1 switches them back on.
+
+    Login, protocol, and startup changes are performed by the app itself (StartupProfiles.exe
+    --register-login / --register-protocol / --take-over-startup) so the registry formats stay owned by
+    the app's seams.
 
 .PARAMETER Port
     Loopback API port to persist in config.json (default 8790). Only written when non-default.
@@ -19,7 +25,10 @@
     The default is a self-contained build that bundles the runtime.
 
 .PARAMETER NoStartup
-    Do not register the launcher to run at login.
+    Do not register the launcher to run at login. Implies -KeepStartupApps.
+
+.PARAMETER KeepStartupApps
+    Leave existing Windows startup apps as they are instead of moving them into the Everything profile.
 
 .PARAMETER NoProtocol
     Do not register the startupprofiles:// protocol handler.
@@ -37,6 +46,7 @@ param(
     [int]    $Port = 8790,
     [switch] $FrameworkDependent,
     [switch] $NoStartup,
+    [switch] $KeepStartupApps,
     [switch] $NoProtocol,
     [switch] $NoSkill
 )
@@ -96,8 +106,17 @@ function Set-ConfigPort {
 }
 
 function Invoke-Maintenance($argument) {
-    $proc = Start-Process -FilePath $ExePath -ArgumentList $argument -Wait -PassThru
-    if ($proc.ExitCode -ne 0) { throw "$ExePath $argument exited with $($proc.ExitCode)." }
+    # The app is a GUI-subsystem exe, so capture its stdout report through a file and echo it.
+    $report = [System.IO.Path]::GetTempFileName()
+    try {
+        $proc = Start-Process -FilePath $ExePath -ArgumentList $argument -Wait -PassThru -NoNewWindow `
+            -RedirectStandardOutput $report
+        Get-Content $report | ForEach-Object { Write-Host "    $_" }
+        if ($proc.ExitCode -ne 0) { throw "$ExePath $argument exited with $($proc.ExitCode)." }
+    }
+    finally {
+        Remove-Item $report -ErrorAction SilentlyContinue
+    }
 }
 
 function Install-Skill {
@@ -117,6 +136,10 @@ Add-StartMenuShortcut
 Set-ConfigPort
 
 if (-not $NoStartup) { Write-Step "Registering launcher at login"; Invoke-Maintenance '--register-login' }
+if (-not $NoStartup -and -not $KeepStartupApps) {
+    Write-Step "Moving Windows startup apps into the Everything profile"
+    Invoke-Maintenance '--take-over-startup'
+}
 if (-not $NoProtocol) { Write-Step "Registering startupprofiles:// protocol"; Invoke-Maintenance '--register-protocol' }
 if (-not $NoSkill) { Install-Skill }
 
@@ -124,3 +147,6 @@ Write-Host ""
 Write-Host "Installed to $InstallDir" -ForegroundColor Green
 Write-Host "Launch it now:  `"$ExePath`""
 if (-not $NoStartup) { Write-Host "It will also appear at your next login." }
+if (-not $NoStartup -and -not $KeepStartupApps) {
+    Write-Host "Your previous startup apps now run from the Everything profile; uninstall.ps1 switches them back on."
+}
