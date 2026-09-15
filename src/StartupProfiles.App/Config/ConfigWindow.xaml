@@ -12,6 +12,7 @@
   <Window.Resources>
     <ui:NullToVisibilityConverter x:Key="NullToVis" />
     <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    <ui:ActionIconConverter x:Key="ActionIcon" />
   </Window.Resources>
 
   <TabControl>
@@ -110,6 +111,23 @@
                     AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column"
                     CanUserSortColumns="False" CanUserReorderColumns="False">
             <DataGrid.Columns>
+              <!-- The app's shell icon (exe, shortcut, or packaged app), as on Windows' Startup apps page. -->
+              <DataGridTemplateColumn Width="40" CanUserResize="False" IsReadOnly="True">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <Image Width="20" Height="20" Stretch="Uniform" HorizontalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality">
+                      <Image.Source>
+                        <MultiBinding Converter="{StaticResource ActionIcon}">
+                          <Binding Path="Type" />
+                          <Binding Path="Target" />
+                          <Binding Path="Arguments" />
+                        </MultiBinding>
+                      </Image.Source>
+                    </Image>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
               <DataGridComboBoxColumn Header="Type" Width="122"
                                       ItemsSource="{x:Static config:ActionEditor.ActionTypes}"
                                       SelectedItemBinding="{Binding Type}"

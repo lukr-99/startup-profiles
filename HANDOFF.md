@@ -20,7 +20,7 @@ dotnet test StartupProfiles.slnx -c Release
 dotnet format StartupProfiles.slnx --verify-no-changes
 ```
 
-- Build is clean (0 warnings, warnings-as-errors on) and 125 tests pass.
+- Build is clean (0 warnings, warnings-as-errors on) and 144 tests pass.
 - Run the app: `dotnet run --project src/StartupProfiles.App` (add `--headless` for the API only,
   `--port N` to override the port, default 8790).
 - Data lives in `%APPDATA%\StartupProfiles` (`profiles.json`, `config.json`, `history.json`,
@@ -141,6 +141,19 @@ the profiles (same action grid; no name/icon/startup/delete) and its "Run now" r
 
 Not yet: profile JSON export/import does not include the base, and switching profiles from the tray
 reruns the base actions (by design - the owner chose "with every profile run").
+
+## Relaunch and action icons (done)
+
+`SingleInstance` owns the per-session mutex plus a named auto-reset event: launching the app while it
+already runs (Start Menu, shortcut) signals the running instance, which shows its launcher (or brings the
+open one forward) instead of the second process exiting silently. The launcher is now a single window.
+
+The config window's action tables show each action's shell icon, like Windows' Startup apps page:
+`ActionIconSource` maps an action to a shell item (exe/shortcut/folder path, `shell:AppsFolder\...` for
+packaged apps, the Squirrel `Update.exe --processStart X.exe` app, `.url` for URLs; none for delays,
+kills, services, inline commands) and `ShellIcons` loads it via `SHParseDisplayName` + `SHGetFileInfo`,
+cached per source. Known gap: app execution aliases (e.g. Teams' `WindowsApps\...\ms-teams.exe` Run
+value) show a generic icon.
 
 ## Next
 
