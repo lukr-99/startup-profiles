@@ -37,6 +37,9 @@ to that profile - as a small declarative startup workflow, not just a list of `.
   system dialog, not a settings app.
 - **Profiles are data, not code.** A profile is a list of typed actions
   (launch app, open URL, run script, start service, start VPN, delay, wait-for, kill, ...).
+- **A base for the always-on stuff.** The base is a list of actions (not a profile) that runs before
+  whichever profile you pick - noise suppression, cloud sync, peripheral tools. A profile can opt out
+  with its **Include base** checkbox.
 - **Rich editing lives elsewhere.** Profile configuration happens in a separate management
   UI. The startup selector stays minimal.
 

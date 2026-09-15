@@ -16,13 +16,26 @@ public static class ApiEndpoints
     {
         var api = app.MapGroup("/api");
 
-        api.MapGet("/health", (IProfileStore profiles) => Results.Ok(new
+        api.MapGet("/health", (IProfileStore profiles, IBaseStore baseStore) => Results.Ok(new
         {
             status = "ok",
             version = typeof(ApiEndpoints).Assembly.GetName().Version?.ToString(),
             dataDirectory = StartupProfilesPaths.DataDirectory,
             profiles = profiles.GetAll().Count,
+            baseActions = baseStore.Load().Actions.Count,
         }));
+
+        // The base: actions that run before every profile with includeBase on. Not a profile itself.
+        api.MapGet("/base", (IBaseStore baseStore) => Results.Ok(baseStore.Load()));
+
+        api.MapPut("/base", (StartupBase value, IBaseStore baseStore) =>
+        {
+            baseStore.Save(value);
+            return Results.Ok(value);
+        });
+
+        api.MapPost("/base/run", async (ProfileExecutor executor) =>
+            Results.Ok(await executor.RunBaseAndRecordAsync()));
 
         api.MapGet("/profiles", (IProfileStore profiles) =>
             Results.Ok(profiles.GetAll().Select(ProfileSummary.From)));

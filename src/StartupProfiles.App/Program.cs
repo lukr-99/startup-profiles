@@ -71,6 +71,7 @@ internal static class Program
     private static void RunUi(WebApplication host)
     {
         var profiles = host.Services.GetRequiredService<IProfileStore>();
+        var baseStore = host.Services.GetRequiredService<IBaseStore>();
         var executor = host.Services.GetRequiredService<ProfileExecutor>();
         var config = host.Services.GetRequiredService<IConfigStore>();
         var prompts = new UserPrompts();
@@ -91,7 +92,7 @@ internal static class Program
         }
 
         void OpenConfig() =>
-            new ConfigWindow(new ConfigViewModel(profiles, executor, prompts),
+            new ConfigWindow(new ConfigViewModel(profiles, baseStore, executor, prompts),
                 ThemeManager.Parse(config.GetValue("theme")), ApplyTheme).Show();
 
         void OpenLauncher() =>
@@ -123,6 +124,7 @@ internal static class Program
         });
 
         builder.Services.AddSingleton<IProfileStore>(_ => new ProfileStore());
+        builder.Services.AddSingleton<IBaseStore>(_ => new BaseStore());
         builder.Services.AddSingleton<IConfigStore>(_ => new ConfigStore());
         builder.Services.AddSingleton<IHistoryStore>(_ => new HistoryStore());
         builder.Services.AddSingleton(_ => WindowsRuntime.CreateActionRegistry());

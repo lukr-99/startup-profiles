@@ -142,6 +142,47 @@ public sealed class StorageTests
     }
 
     [Fact]
+    public void ProfileStore_ProfileSavedBeforeTheBaseExisted_IncludesTheBase()
+    {
+        var file = TempFile();
+        try
+        {
+            File.WriteAllText(file, """[{ "Id": "dev", "Name": "Dev", "Actions": [] }]""");
+
+            Assert.True(new ProfileStore(file).Find("dev")!.IncludeBase);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public void BaseStore_MissingFile_IsEmpty() =>
+        Assert.Empty(new BaseStore(TempFile()).Load().Actions);
+
+    [Fact]
+    public void BaseStore_SaveReload_RoundTripsActions()
+    {
+        var file = TempFile();
+        try
+        {
+            new BaseStore(file).Save(new StartupBase
+            {
+                Actions = [new ProfileAction { Type = ActionType.LaunchApp, Target = "noise.exe", Arguments = "--tray" }],
+            });
+
+            var action = Assert.Single(new BaseStore(file).Load().Actions);
+            Assert.Equal("noise.exe", action.Target);
+            Assert.Equal("--tray", action.Arguments);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
     public void StartupTakeoverStore_SaveReloadClear_RoundTripsEntries()
     {
         var file = TempFile();

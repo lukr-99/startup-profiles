@@ -30,6 +30,32 @@ public sealed class ApiEndpointsTests
     }
 
     [Fact]
+    public async Task Base_PutThenGet_RoundTrips_AndHealthCountsIt()
+    {
+        await using var api = await TestApi.StartAsync();
+        var value = new StartupBase { Actions = [new ProfileAction { Type = ActionType.LaunchApp, Target = "noise.exe" }] };
+
+        var put = await api.Client.PutAsJsonAsync("/api/base", value, TestApi.Json);
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+
+        var fetched = await api.Client.GetFromJsonAsync<StartupBase>("/api/base", TestApi.Json);
+        Assert.Equal("noise.exe", Assert.Single(fetched!.Actions).Target);
+
+        var health = await api.Client.GetFromJsonAsync<JsonElement>("/api/health");
+        Assert.Equal(1, health.GetProperty("baseActions").GetInt32());
+    }
+
+    [Fact]
+    public async Task Profiles_List_ReportsIncludeBase()
+    {
+        await using var api = await TestApi.StartAsync();
+
+        var list = await api.Client.GetFromJsonAsync<JsonElement>("/api/profiles");
+
+        Assert.True(list[0].GetProperty("includeBase").GetBoolean());
+    }
+
+    [Fact]
     public async Task Profiles_CreateThenGet_RoundTrips()
     {
         await using var api = await TestApi.StartAsync();

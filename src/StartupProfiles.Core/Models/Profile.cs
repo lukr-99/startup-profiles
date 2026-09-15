@@ -10,6 +10,10 @@ public sealed record Profile
     public required string Name { get; init; }
     public string? Icon { get; init; }
     public IReadOnlyList<ProfileAction> Actions { get; init; } = [];
+
+    /// <summary>Run the <see cref="StartupBase"/> actions before this profile's own. On by default.</summary>
+    public bool IncludeBase { get; init; } = true;
+
     public StartupBehaviour StartupBehaviour { get; init; } = StartupBehaviour.Default;
     public IReadOnlyList<ProfileCondition> Conditions { get; init; } = [];
 }

@@ -29,21 +29,24 @@ internal sealed class TestApi : IAsyncDisposable
     private readonly WebApplication _app;
     private readonly string _profilesFile;
     private readonly string _historyFile;
+    private readonly string _baseFile;
 
     public HttpClient Client { get; }
 
-    private TestApi(WebApplication app, HttpClient client, string profilesFile, string historyFile)
+    private TestApi(WebApplication app, HttpClient client, string profilesFile, string historyFile, string baseFile)
     {
         _app = app;
         Client = client;
         _profilesFile = profilesFile;
         _historyFile = historyFile;
+        _baseFile = baseFile;
     }
 
     public static async Task<TestApi> StartAsync()
     {
         var profilesFile = Path.Combine(Path.GetTempPath(), $"sp-api-{Guid.NewGuid():N}.json");
         var historyFile = Path.Combine(Path.GetTempPath(), $"sp-hist-{Guid.NewGuid():N}.json");
+        var baseFile = Path.Combine(Path.GetTempPath(), $"sp-base-{Guid.NewGuid():N}.json");
 
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
@@ -55,6 +58,7 @@ internal sealed class TestApi : IAsyncDisposable
         });
         builder.Services.AddSingleton<IProfileStore>(_ => new ProfileStore(profilesFile));
         builder.Services.AddSingleton<IHistoryStore>(_ => new HistoryStore(historyFile));
+        builder.Services.AddSingleton<IBaseStore>(_ => new BaseStore(baseFile));
         builder.Services.AddSingleton(_ => ActionHandlerRegistry.CreateDefault(new SystemProcessLauncher()));
         builder.Services.AddSingleton(sp => new ProfileRunner(sp.GetRequiredService<ActionHandlerRegistry>(), new TaskDelayer()));
         builder.Services.AddSingleton<ProfileExecutor>();
@@ -68,7 +72,7 @@ internal sealed class TestApi : IAsyncDisposable
 
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
         var client = new HttpClient { BaseAddress = new Uri(address) };
-        return new TestApi(app, client, profilesFile, historyFile);
+        return new TestApi(app, client, profilesFile, historyFile, baseFile);
     }
 
     public async ValueTask DisposeAsync()
@@ -78,5 +82,6 @@ internal sealed class TestApi : IAsyncDisposable
         await _app.DisposeAsync();
         File.Delete(_profilesFile);
         File.Delete(_historyFile);
+        File.Delete(_baseFile);
     }
 }

@@ -4,7 +4,7 @@ Snapshot of Windows Startup Profiles as of 2026-08-31. For the full design see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); for conventions see [AGENTS.md](AGENTS.md) and
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Status: Milestones 1-5, installer, release CI, UI polish, startup takeover done; conditions next
+## Status: Milestones 1-5, installer, release CI, UI polish, startup takeover, base done; conditions next
 
 The app runs today: launch it and a WPF login selector appears; pick a context and it launches that
 profile's actions, then lives in the tray. Profiles are editable in the config window. A loopback HTTP
@@ -20,11 +20,11 @@ dotnet test StartupProfiles.slnx -c Release
 dotnet format StartupProfiles.slnx --verify-no-changes
 ```
 
-- Build is clean (0 warnings, warnings-as-errors on) and 113 tests pass.
+- Build is clean (0 warnings, warnings-as-errors on) and 125 tests pass.
 - Run the app: `dotnet run --project src/StartupProfiles.App` (add `--headless` for the API only,
   `--port N` to override the port, default 8790).
 - Data lives in `%APPDATA%\StartupProfiles` (`profiles.json`, `config.json`, `history.json`,
-  `endpoint.json`, `startup-takeover.json`). Nothing leaves the machine.
+  `endpoint.json`, `startup-takeover.json`, `base.json`). Nothing leaves the machine.
 
 ## What exists
 
@@ -129,6 +129,18 @@ labels below a width threshold (icons-only) instead of clipping text. Profiles h
 chosen from a picker (`IUserPrompts.PickIcon`), rendered on the launcher tiles. A global dispatcher
 exception handler logs to `error.log` and keeps the app alive. `dotnetlib` remains the longer-term
 style reference.
+
+## Base (done)
+
+The base is an action list that runs before whichever profile is run - from the launcher, tray, config
+window, or API - unless that profile unticks **Include base** (`Profile.IncludeBase`, default true).
+It is deliberately not a profile: `StartupBase` in `base.json` via `IBaseStore`, no launcher tile.
+`ProfileExecutor` prepends the base actions into the same run. The config window pins **Base** above
+the profiles (same action grid; no name/icon/startup/delete) and its "Run now" runs the base alone. API:
+`GET`/`PUT /api/base`, `POST /api/base/run`; profile summaries carry `includeBase`.
+
+Not yet: profile JSON export/import does not include the base, and switching profiles from the tray
+reruns the base actions (by design - the owner chose "with every profile run").
 
 ## Next
 

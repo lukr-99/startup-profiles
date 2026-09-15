@@ -15,8 +15,11 @@ All request/response bodies are JSON. Operation endpoints return
 
 | Method | Path | Description |
 | --- | --- | --- |
-| GET | `/api/health` | Status, version, data dir, profile count. |
-| GET | `/api/profiles` | All profiles as summaries (id, name, icon, action count). |
+| GET | `/api/health` | Status, version, data dir, profile count, base action count. |
+| GET | `/api/base` | The base: `{ actions: [...] }`, run before every profile with `includeBase` on. |
+| PUT | `/api/base` | Replace the base (body `{ actions: [...] }`). |
+| POST | `/api/base/run` | Run only the base now, record history (as profile id `base`), return the run. |
+| GET | `/api/profiles` | All profiles as summaries (id, name, icon, action count, includeBase). |
 | GET | `/api/profiles/{id}` | One full profile including its actions (404 if unknown). |
 | POST | `/api/profiles` | Create a profile (body is a full profile; 409 if the id exists). |
 | PUT | `/api/profiles/{id}` | Create or replace the profile with this id. |
@@ -26,6 +29,11 @@ All request/response bodies are JSON. Operation endpoints return
 | POST | `/api/register` | Request that an app be added to profiles (two-phase confirm; see INTEGRATION.md). |
 
 All bodies are JSON, camelCase, with enums as camelCase strings.
+
+The **base** is not a profile: it has no id, name, or launcher tile, only actions. Running a profile
+(`POST /api/profiles/{id}/run`, the launcher, the tray, or the config window) runs the base actions
+first, as part of the same run, unless the profile has `"includeBase": false`. Profiles without the
+field include the base.
 
 Deleting a profile follows a single-use, server-issued confirmation token. `DELETE /api/profiles/{id}`
 without a token returns `{ required: true, confirmToken, summary }`; resubmit as

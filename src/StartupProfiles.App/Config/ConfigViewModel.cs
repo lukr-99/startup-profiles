@@ -11,7 +11,10 @@ using StartupProfiles.Core.Storage;
 
 namespace StartupProfiles.App.Config;
 
-/// <summary>Drives the configuration window: profile list plus the editor for the selected profile.</summary>
+/// <summary>
+/// Drives the configuration window: the sidebar (the base pinned first, then the profiles) plus the editor
+/// for the selected row.
+/// </summary>
 public sealed class ConfigViewModel : ObservableObject
 {
     private static readonly JsonSerializerOptions PortableJson = new()
@@ -22,6 +25,7 @@ public sealed class ConfigViewModel : ObservableObject
     };
 
     private readonly IProfileStore _profiles;
+    private readonly IBaseStore _base;
     private readonly ProfileExecutor _executor;
     private readonly IUserPrompts _prompts;
 
@@ -39,9 +43,10 @@ public sealed class ConfigViewModel : ObservableObject
     private ActionEditor? _selectedAction;
     private string? _status;
 
-    public ConfigViewModel(IProfileStore profiles, ProfileExecutor executor, IUserPrompts prompts)
+    public ConfigViewModel(IProfileStore profiles, IBaseStore baseStore, ProfileExecutor executor, IUserPrompts prompts)
     {
         _profiles = profiles;
+        _base = baseStore;
         _executor = executor;
         _prompts = prompts;
 
@@ -49,9 +54,9 @@ public sealed class ConfigViewModel : ObservableObject
         ExportCommand = new RelayCommand(_ => Export());
         ImportCommand = new RelayCommand(_ => Import());
         _saveCommand = new RelayCommand(_ => Save(), _ => Editor is not null);
-        _deleteCommand = new RelayCommand(_ => Delete(), _ => Editor is not null);
+        _deleteCommand = new RelayCommand(_ => Delete(), _ => Editor is { IsBase: false });
         _runCommand = new RelayCommand(_ => _ = RunAsync(), _ => Editor is not null);
-        _pickIconCommand = new RelayCommand(_ => PickIcon(), _ => Editor is not null);
+        _pickIconCommand = new RelayCommand(_ => PickIcon(), _ => Editor is { IsBase: false });
         _addActionCommand = new RelayCommand(_ => AddAction(), _ => Editor is not null);
         _removeActionCommand = new RelayCommand(_ => RemoveAction(), _ => SelectedAction is not null);
         _moveUpCommand = new RelayCommand(_ => Move(-1), _ => SelectedAction is not null);
@@ -60,6 +65,7 @@ public sealed class ConfigViewModel : ObservableObject
         LoadList();
     }
 
+    /// <summary>Sidebar rows: the base first (<see cref="ProfileListItem.IsBase"/>), then every profile.</summary>
     public ObservableCollection<ProfileListItem> Profiles { get; } = [];
 
     public ProfileListItem? Selected
@@ -114,15 +120,19 @@ public sealed class ConfigViewModel : ObservableObject
     private void LoadList()
     {
         Profiles.Clear();
+        Profiles.Add(new ProfileListItem(ProfileExecutor.BaseRunId, "Base", _base.Load().Actions.Count, isBase: true));
         foreach (var profile in _profiles.GetAll())
             Profiles.Add(new ProfileListItem(profile.Id, profile.Name, profile.Actions.Count));
     }
 
     private void LoadEditor()
     {
-        Editor = Selected is not null && _profiles.Find(Selected.Id) is { } profile
-            ? ProfileEditor.FromProfile(profile)
-            : null;
+        Editor = Selected switch
+        {
+            { IsBase: true } => ProfileEditor.FromBase(_base.Load()),
+            { } item when _profiles.Find(item.Id) is { } profile => ProfileEditor.FromProfile(profile),
+            _ => null,
+        };
         SelectedAction = null;
         Status = null;
     }
@@ -148,8 +158,10 @@ public sealed class ConfigViewModel : ObservableObject
     private void Save()
     {
         if (Editor is null) return;
-        _profiles.Save(Editor.ToProfile());
-        if (Profiles.FirstOrDefault(p => p.Id == Editor.Id) is { } item)
+        if (Editor.IsBase) _base.Save(Editor.ToBase());
+        else _profiles.Save(Editor.ToProfile());
+
+        if (FindListItem(Editor) is { } item)
         {
             item.Name = Editor.Name;
             item.ActionCount = Editor.Actions.Count;
@@ -159,26 +171,35 @@ public sealed class ConfigViewModel : ObservableObject
 
     private void Delete()
     {
-        if (Editor is null) return;
+        if (Editor is not { IsBase: false }) return;
         if (!_prompts.Confirm($"Delete profile '{Editor.Name}'?")) return;
 
         _profiles.Remove(Editor.Id);
-        if (Profiles.FirstOrDefault(p => p.Id == Editor.Id) is { } item) Profiles.Remove(item);
+        if (FindListItem(Editor) is { } item) Profiles.Remove(item);
         Selected = null;
     }
 
+    private ProfileListItem? FindListItem(ProfileEditor editor) =>
+        Profiles.FirstOrDefault(p => p.IsBase == editor.IsBase && p.Id == editor.Id);
+
     private void PickIcon()
     {
-        if (Editor is null) return;
+        if (Editor is not { IsBase: false }) return;
         var picked = _prompts.PickIcon(Editor.Icon);
         if (picked is not null) Editor.Icon = picked; // empty string clears the icon; null means cancelled
     }
 
     private async Task RunAsync()
     {
-        if (Editor is null || _profiles.Find(Editor.Id) is not { } profile) return;
+        if (Editor is null) return;
+
+        Task<ProfileRun> running;
+        if (Editor.IsBase) running = _executor.RunBaseAndRecordAsync();
+        else if (_profiles.Find(Editor.Id) is { } profile) running = _executor.RunAndRecordAsync(profile);
+        else return;
+
         Status = "Running...";
-        var run = await _executor.RunAndRecordAsync(profile);
+        var run = await running;
         Status = run.Succeeded ? "Run finished." : "Run finished with failures.";
     }
 

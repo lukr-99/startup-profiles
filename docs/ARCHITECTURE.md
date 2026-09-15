@@ -264,6 +264,15 @@ app into the Everything profile, record it (`IStartupTakeoverStore`, `startup-ta
 off - and the uninstall `Restore`. The installer drives it through `--take-over-startup` /
 `--restore-startup`; `--list-startup` prints the catalog.
 
+Base: `Models/StartupBase` is an action list that is deliberately not a `Profile` (no tile, name, or
+icon), persisted by `IBaseStore` / `BaseStore` as `base.json`. `Profile.IncludeBase` (default true, so
+older profiles include it) opts a profile in. `ProfileExecutor` - already the single run-then-record
+path for the launcher, tray, config window, and API - prepends the base actions to any profile that
+includes it, so they run first within the same `ProfileRun` (a base action with `FailureBehaviour.Stop`
+therefore stops the profile too). `RunBaseAndRecordAsync` runs the base alone, recorded as profile id
+`base`. The config window pins the base above the profiles in its sidebar and reuses the action editor
+for it; the API exposes `GET`/`PUT /api/base` and `POST /api/base/run`.
+
 ## Future ideas (not scheduled)
 
 Keyboard shortcuts per profile - Start-menu launch - profile chaining - scheduled profiles -

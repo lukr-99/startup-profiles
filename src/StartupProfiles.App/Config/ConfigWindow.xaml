@@ -11,6 +11,7 @@
         TextElement.Foreground="{DynamicResource App.Text}">
   <Window.Resources>
     <ui:NullToVisibilityConverter x:Key="NullToVis" />
+    <BooleanToVisibilityConverter x:Key="BoolToVis" />
   </Window.Resources>
 
   <TabControl>
@@ -30,13 +31,28 @@
           </StackPanel>
           <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding Selected}"
                    Background="Transparent" BorderThickness="0" Margin="6">
+            <!-- The base is pinned first and set apart from the profiles below it. -->
+            <ListBox.ItemContainerStyle>
+              <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsBase}" Value="True">
+                    <Setter Property="Margin" Value="0,1,0,12" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </ListBox.ItemContainerStyle>
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <DockPanel>
-                  <TextBlock Text="{Binding ActionCount}" DockPanel.Dock="Right"
-                             Foreground="{DynamicResource App.Muted}" />
-                  <TextBlock Text="{Binding Name}" />
-                </DockPanel>
+                <StackPanel>
+                  <DockPanel>
+                    <TextBlock Text="{Binding ActionCount}" DockPanel.Dock="Right"
+                               Foreground="{DynamicResource App.Muted}" />
+                    <TextBlock Text="{Binding Name}" />
+                  </DockPanel>
+                  <TextBlock Text="Starts with every profile" FontSize="11" Margin="0,2,0,0"
+                             Foreground="{DynamicResource App.Muted}"
+                             Visibility="{Binding IsBase, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
@@ -59,7 +75,14 @@
             <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
 
-          <WrapPanel Grid.Row="0">
+          <StackPanel Grid.Row="0" Margin="0,0,0,8"
+                      Visibility="{Binding Editor.IsBase, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="Base" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,4,0,0"
+                       Text="These actions run first, every time a profile runs. Untick 'Include base' on a profile to skip them there." />
+          </StackPanel>
+
+          <WrapPanel Grid.Row="0" Visibility="{Binding Editor.IsProfile, Converter={StaticResource BoolToVis}}">
             <StackPanel Margin="0,0,16,8">
               <TextBlock Text="Name" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
               <TextBox Text="{Binding Editor.Name, UpdateSourceTrigger=PropertyChanged}"
@@ -70,10 +93,14 @@
               <Button Command="{Binding PickIconCommand}" Content="{Binding Editor.IconDisplay}"
                       FontFamily="Segoe UI Emoji" FontSize="16" Width="120" Height="32" />
             </StackPanel>
-            <StackPanel Margin="0,0,0,8">
+            <StackPanel Margin="0,0,16,8">
               <TextBlock Text="Startup" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
               <ComboBox ItemsSource="{x:Static config:ProfileEditor.StartupBehaviours}"
                         SelectedItem="{Binding Editor.StartupBehaviour}" Width="220" Height="32" />
+            </StackPanel>
+            <StackPanel Margin="0,0,0,8" VerticalAlignment="Bottom">
+              <CheckBox Content="Include base" IsChecked="{Binding Editor.IncludeBase}" Height="32"
+                        ToolTip="Run the base actions before this profile's own." />
             </StackPanel>
           </WrapPanel>
 
@@ -121,7 +148,8 @@
                     Margin="0,0,8,0" />
             <Button Content="Run now" Command="{Binding RunCommand}" Padding="12,7" Margin="0,0,8,0" />
             <Button Content="Delete" Command="{Binding DeleteCommand}" Padding="12,7"
-                    Foreground="{DynamicResource App.Danger}" />
+                    Foreground="{DynamicResource App.Danger}"
+                    Visibility="{Binding Editor.IsProfile, Converter={StaticResource BoolToVis}}" />
             <TextBlock Text="{Binding Status}" Foreground="{DynamicResource App.Muted}"
                        VerticalAlignment="Center" Margin="12,0,0,0" />
           </StackPanel>

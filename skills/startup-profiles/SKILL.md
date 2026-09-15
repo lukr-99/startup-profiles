@@ -30,6 +30,8 @@ See [docs/API.md](../../docs/API.md) for the full endpoint table. Highlights:
 - `GET /api/profiles` - list profiles (Work, Dev, School, Games, Chill, Everything, ...).
 - `GET /api/profiles/{id}` - a profile's ordered actions.
 - `POST /api/profiles/{id}/run` - run a profile now; returns the run with per-action results.
+- `GET /api/base` - the base: actions that run before every profile with `includeBase` on (the
+  default). Include them when describing what a profile launches.
 - `GET /api/history` - recent runs and failed actions.
 
 Deleting a profile is two-phase: `DELETE /api/profiles/{id}` returns a `confirmToken`; resubmit as
