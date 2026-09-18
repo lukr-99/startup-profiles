@@ -144,57 +144,62 @@ public sealed class ConfigViewModel : ObservableObject
     public ICommand RefreshStartupAppsCommand { get; }
 
     /// <summary>
+    /// Raised when what the side panel offers may have changed: another profile was selected, "Include base" was
+    /// toggled, or the base or a library item changed.
+    /// </summary>
+    public event Action? PanelFilterChanged;
+
+    /// <summary>
+    /// Whether the side panel offers <paramref name="item"/> (a <see cref="StartupAppItem"/> or
+    /// <see cref="LibraryItemRow"/>). While a profile that includes the base is being edited, anything the base
+    /// already starts is hidden - it runs with that profile anyway.
+    /// </summary>
+    public bool IsOfferedInPanel(object item) => item switch
+    {
+        LibraryItemRow row when row.Id is { } id => !BaseCovers(id, row.ToItem().ApplyTo(new ProfileAction { Type = row.Type })),
+        StartupAppItem app => !BaseCovers(null, app.Launch),
+        _ => true,
+    };
+
+    /// <summary>
     /// Adds a Windows startup app to the profile or base being edited, at <paramref name="index"/> (the row it
-    /// was dropped on) or at the end. The app goes into the library first, so the row links to it.
+    /// was dropped on) or at the end, and saves. The app goes into the library first, so the row links to it.
     /// </summary>
     public void AddStartupApp(StartupAppItem app, int? index = null)
     {
         if (Editor is null) return;
-        AddLibraryItem(Library.Keep(app.Name, app.Launch), index);
+        if (Insert(Library.Keep(app.Name, app.Launch), index)) SaveEdits();
     }
 
-    /// <summary>Adds a library item (dragged from the Created tab) as a linked row.</summary>
+    /// <summary>Adds a library item (dragged or double-clicked from the Created tab) as a linked row, and saves.</summary>
     public void AddLibraryRow(LibraryItemRow row, int? index = null)
     {
         if (row.Id is { } id && Library.Find(id) is { } item) AddLibraryItem(item, index);
     }
 
-    /// <summary>
-    /// Adds a row linked to <paramref name="item"/> at <paramref name="index"/> or at the end. If a row already
-    /// starts the same thing it is linked and selected instead of added twice. Kept once the editor is saved.
-    /// </summary>
+    /// <summary>Adds a row linked to <paramref name="item"/> at <paramref name="index"/> or at the end, and saves.</summary>
     public void AddLibraryItem(LibraryItem item, int? index = null)
     {
-        if (Editor is null) return;
-
-        if (Editor.Actions.FirstOrDefault(a => a.LibraryItemId == item.Id || (!a.IsLinked && item.Starts(a.ToAction()))) is { } existing)
-        {
-            existing.LinkTo(item);
-            SelectedAction = existing;
-            Status = $"'{item.Name}' is already here.";
-            return;
-        }
-
-        var action = new ActionEditor();
-        action.LinkTo(item);
-        Editor.Actions.Insert(index is >= 0 and var i && i <= Editor.Actions.Count ? i : Editor.Actions.Count, action);
-        SelectedAction = action;
-        Status = $"Added '{item.Name}'. Save to keep it.";
+        if (Insert(item, index)) SaveEdits();
     }
 
     /// <summary>Adds files or folders dropped from Explorer: each goes into the library and is linked here.</summary>
     public void AddFiles(IEnumerable<string> paths, int? index = null)
     {
         if (Editor is null) return;
+
+        var added = false;
         foreach (var path in paths)
         {
             var action = Startables.ActionForPath(path);
-            AddLibraryItem(Library.Keep(Startables.NameFor(action), action), index);
-            if (index is not null) index = Editor.Actions.IndexOf(SelectedAction!) + 1;
+            added |= Insert(Library.Keep(Startables.NameFor(action), action), index);
+            if (index is not null && SelectedAction is not null) index = Editor.Actions.IndexOf(SelectedAction) + 1;
         }
+
+        if (added) SaveEdits();
     }
 
-    /// <summary>Moves a row dragged within the table so it lands above the row at <paramref name="index"/> (or last).</summary>
+    /// <summary>Moves a row dragged within the table so it lands above the row at <paramref name="index"/> (or last), and saves.</summary>
     public void MoveAction(ActionEditor action, int? index)
     {
         if (Editor is null) return;
@@ -203,13 +208,80 @@ public sealed class ConfigViewModel : ObservableObject
 
         var target = index is >= 0 and var i && i < Editor.Actions.Count ? i : Editor.Actions.Count;
         var to = target > from ? target - 1 : target;
-        if (to != from) Editor.Actions.Move(from, to);
         SelectedAction = action;
+        if (to == from) return;
+
+        Editor.Actions.Move(from, to);
+        SaveEdits("Moved.");
     }
 
     /// <summary>
-    /// Saves a table row dragged into the Created tab to the library (reusing an item that starts the same thing)
-    /// and links the row to it.
+    /// Adds what was dropped on a sidebar row - a panel item, files from Explorer, or a table row - to that profile
+    /// or the base without opening it, and saves it. Dropping on the open profile behaves like dropping on its table.
+    /// </summary>
+    public void DropOnProfile(ProfileListItem target, object payload)
+    {
+        if (Editor is not null && target.IsBase == Editor.IsBase && target.Id == Editor.Id)
+        {
+            switch (payload)
+            {
+                case StartupAppItem app: AddStartupApp(app); break;
+                case LibraryItemRow row: AddLibraryRow(row); break;
+                case string[] files: AddFiles(files); break;
+                case ActionEditor: Status = "That row is already in this profile."; break;
+            }
+            return;
+        }
+
+        var incoming = payload switch
+        {
+            StartupAppItem app => [Link(Library.Keep(app.Name, app.Launch))],
+            LibraryItemRow { Id: { } id } when Library.Find(id) is { } item => [Link(item)],
+            string[] files => files.Select(path =>
+            {
+                var action = Startables.ActionForPath(path);
+                return Link(Library.Keep(Startables.NameFor(action), action));
+            }).ToList(),
+            ActionEditor row => [row.ToAction()],
+            _ => new List<ProfileAction>(),
+        };
+        if (incoming.Count == 0) return;
+
+        var profile = target.IsBase ? null : _profiles.Find(target.Id);
+        if (!target.IsBase && profile is null) return;
+
+        var existing = target.IsBase ? _base.Load().Actions : profile!.Actions;
+        var checksBase = profile is { IncludeBase: true };
+        var added = new List<ProfileAction>();
+        var skipped = new List<string>();
+        foreach (var action in incoming)
+        {
+            if (Contains(existing.Concat(added), action) || (checksBase && BaseCovers(action.LibraryItemId, action)))
+                skipped.Add(NameOf(action));
+            else
+                added.Add(action);
+        }
+
+        if (added.Count > 0)
+        {
+            var actions = (IReadOnlyList<ProfileAction>)[.. existing, .. added];
+            if (target.IsBase) _base.Save(_base.Load() with { Actions = actions });
+            else _profiles.Save(profile! with { Actions = actions });
+            target.ActionCount = actions.Count;
+            if (target.IsBase) RefreshPanelFilter();
+        }
+
+        Status = (added.Count, skipped.Count) switch
+        {
+            ( > 0, 0) => $"Added {string.Join(", ", added.Select(NameOf))} to {target.Name} and saved.",
+            ( > 0, _) => $"Added {string.Join(", ", added.Select(NameOf))} to {target.Name}; {string.Join(", ", skipped)} already there or in Base.",
+            _ => $"{string.Join(", ", skipped)} is already in {target.Name} or starts from Base.",
+        };
+    }
+
+    /// <summary>
+    /// Saves a table row dragged into the Created tab to the library (reusing an item that starts the same thing),
+    /// links the row to it, and saves the profile.
     /// </summary>
     public void SaveActionToLibrary(ActionEditor action)
     {
@@ -229,7 +301,7 @@ public sealed class ConfigViewModel : ObservableObject
         var item = Library.Keep(Startables.NameFor(snapshot), snapshot);
         action.LinkTo(item);
         Library.Status = $"Saved '{item.Name}'. The row now links to it.";
-        if (Editor?.Actions.Contains(action) == true) Status = "Row linked to the library. Save to keep the link.";
+        if (Editor?.Actions.Contains(action) == true) SaveEdits("Row linked to the library and saved.");
     }
 
     /// <summary>Saves a Windows startup app dragged into the Created tab to the library.</summary>
@@ -250,14 +322,89 @@ public sealed class ConfigViewModel : ObservableObject
         if (saved.Count > 0) Library.Status = $"Saved {string.Join(", ", saved)}.";
     }
 
+    /// <summary>
+    /// Inserts a row linked to <paramref name="item"/>. Returns false when nothing was added: a row already starts
+    /// it (that row is linked and selected instead), or the base already starts it for this profile.
+    /// </summary>
+    private bool Insert(LibraryItem item, int? index)
+    {
+        if (Editor is null) return false;
+
+        if (Editor.Actions.FirstOrDefault(a => a.LibraryItemId == item.Id || (!a.IsLinked && item.Starts(a.ToAction()))) is { } existing)
+        {
+            existing.LinkTo(item);
+            SelectedAction = existing;
+            Status = $"'{item.Name}' is already here.";
+            return false;
+        }
+
+        if (BaseCovers(item.Id, Link(item)))
+        {
+            Status = $"'{item.Name}' already starts from Base with this profile.";
+            return false;
+        }
+
+        var action = new ActionEditor();
+        action.LinkTo(item);
+        Editor.Actions.Insert(index is >= 0 and var i && i <= Editor.Actions.Count ? i : Editor.Actions.Count, action);
+        SelectedAction = action;
+        Status = $"Added '{item.Name}'.";
+        return true;
+    }
+
+    /// <summary>Saves the open profile or base after a drag-and-drop change, so drops never need a separate Save.</summary>
+    private void SaveEdits(string? status = null)
+    {
+        var detail = status ?? Status;
+        Save();
+        Status = detail is null ? "Saved." : $"{detail.TrimEnd('.')} - saved.";
+    }
+
+    /// <summary>
+    /// True while a profile that includes the base is being edited and the base already starts
+    /// <paramref name="action"/> (linked to <paramref name="itemId"/>, or starting the same target).
+    /// </summary>
+    private bool BaseCovers(string? itemId, ProfileAction action) =>
+        Editor is { IsBase: false, IncludeBase: true } && BaseStarts(itemId, action);
+
+    private bool BaseStarts(string? itemId, ProfileAction action) =>
+        _base.Load().Actions.Any(b =>
+            (itemId is not null && b.LibraryItemId == itemId) || SameStart(Resolve(b), action));
+
+    private ProfileAction Resolve(ProfileAction action) =>
+        action.LibraryItemId is { } id && Library.Find(id) is { } item ? item.ApplyTo(action) : action;
+
+    private bool Contains(IEnumerable<ProfileAction> actions, ProfileAction action) =>
+        actions.Any(a => (action.LibraryItemId is not null && a.LibraryItemId == action.LibraryItemId) ||
+                         SameStart(Resolve(a), Resolve(action)));
+
+    private static bool SameStart(ProfileAction a, ProfileAction b) =>
+        a.Type == b.Type &&
+        string.Equals(a.Target, b.Target, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(a.Arguments ?? "", b.Arguments ?? "", StringComparison.OrdinalIgnoreCase);
+
+    private static ProfileAction Link(LibraryItem item) => item.ApplyTo(new ProfileAction { Type = item.Type });
+
+    private string NameOf(ProfileAction action) =>
+        action.LibraryItemId is { } id && Library.Find(id) is { } item ? item.Name : Startables.NameFor(action);
+
+    private void RefreshPanelFilter() => PanelFilterChanged?.Invoke();
+
+    private void OnEditorChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ProfileEditor.IncludeBase)) RefreshPanelFilter();
+    }
+
     private void RelinkRows(LibraryItem item)
     {
         foreach (var row in Editor?.Actions.Where(a => a.LibraryItemId == item.Id) ?? []) row.LinkTo(item);
+        RefreshPanelFilter();
     }
 
     private void UnlinkRows(string id)
     {
         foreach (var row in Editor?.Actions.Where(a => a.LibraryItemId == id) ?? []) row.Unlink();
+        RefreshPanelFilter();
     }
 
     private void LoadStartupApps()
@@ -284,14 +431,17 @@ public sealed class ConfigViewModel : ObservableObject
 
     private void LoadEditor()
     {
+        if (Editor is not null) Editor.PropertyChanged -= OnEditorChanged;
         Editor = Selected switch
         {
             { IsBase: true } => ProfileEditor.FromBase(_base.Load(), Library.Find),
             { } item when _profiles.Find(item.Id) is { } profile => ProfileEditor.FromProfile(profile, Library.Find),
             _ => null,
         };
+        if (Editor is not null) Editor.PropertyChanged += OnEditorChanged;
         SelectedAction = null;
         Status = null;
+        RefreshPanelFilter();
     }
 
     private void NewProfile()
@@ -324,6 +474,7 @@ public sealed class ConfigViewModel : ObservableObject
             item.ActionCount = Editor.Actions.Count;
         }
         Status = "Saved.";
+        if (Editor.IsBase) RefreshPanelFilter();
     }
 
     private void Delete()
@@ -382,6 +533,7 @@ public sealed class ConfigViewModel : ObservableObject
         var target = index + delta;
         if (target < 0 || target >= Editor.Actions.Count) return;
         Editor.Actions.Move(index, target);
+        SaveEdits("Moved.");
     }
 
     private void Export()

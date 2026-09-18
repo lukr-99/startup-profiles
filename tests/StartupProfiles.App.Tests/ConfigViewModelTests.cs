@@ -202,7 +202,11 @@ public sealed class ConfigViewModelTests
         Assert.Equal(@"C:\Steam\steam.exe", added.Target);
         Assert.Equal("-silent", added.Arguments);
         Assert.Same(added, viewModel.SelectedAction);
-        Assert.Equal(2, services.Profiles.Find("games")!.Actions.Count); // not saved until Save
+
+        // Dropping saves right away, in the dropped order.
+        var saved = services.Profiles.Find("games")!.Actions;
+        Assert.Equal(["https://a", @"C:\Steam\steam.exe", "https://b"], saved.Select(a => a.Target));
+        Assert.Contains("saved", viewModel.Status, StringComparison.Ordinal);
 
         // The app went into the library and the row links to it.
         var item = Assert.Single(services.Library.GetAll());
@@ -370,6 +374,109 @@ public sealed class ConfigViewModelTests
         Assert.Single(viewModel.Editor!.Actions);
         Assert.Single(services.Library.GetAll());
         Assert.Contains("already", viewModel.Status, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Panel_HidesWhatBaseStarts_WhileEditingAProfileThatIncludesIt()
+    {
+        using var services = AppTestServices.Create();
+        var noise = services.Library.Add(new LibraryItem { Name = "Noise", Target = @"C:\AMD\noise.exe" });
+        var steam = services.Library.Add(new LibraryItem { Name = "Steam", Target = @"C:\Steam\steam.exe" });
+        services.Base.Save(new StartupBase { Actions = [noise.ApplyTo(new ProfileAction { Type = ActionType.LaunchApp })] });
+        services.StartupApps.Entries.Add(Entry("AMD Noise", @"C:\AMD\noise.exe"));
+        services.StartupApps.Entries.Add(Entry("Discord", @"C:\Discord\Update.exe"));
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+        var refreshes = 0;
+        viewModel.PanelFilterChanged += () => refreshes++;
+        bool Offered(object item) => viewModel.IsOfferedInPanel(item);
+        var noiseRow = viewModel.Library.Items.Single(r => r.Id == noise.Id);
+        var steamRow = viewModel.Library.Items.Single(r => r.Id == steam.Id);
+        var noiseApp = viewModel.StartupApps.Single(a => a.Name == "AMD Noise");
+        var discordApp = viewModel.StartupApps.Single(a => a.Name == "Discord");
+
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "games");
+        Assert.False(Offered(noiseRow));
+        Assert.False(Offered(noiseApp)); // same target as the base's linked item
+        Assert.True(Offered(steamRow));
+        Assert.True(Offered(discordApp));
+
+        viewModel.Editor!.IncludeBase = false;
+        Assert.True(Offered(noiseRow));
+
+        viewModel.Selected = viewModel.Profiles.Single(p => p.IsBase);
+        Assert.True(Offered(noiseRow));
+        Assert.True(refreshes >= 3);
+    }
+
+    [Fact]
+    public void AddingSomethingBaseStarts_ToAProfile_IsRefused()
+    {
+        using var services = AppTestServices.Create();
+        var noise = services.Library.Add(new LibraryItem { Name = "Noise", Target = @"C:\AMD\noise.exe" });
+        services.Base.Save(new StartupBase { Actions = [noise.ApplyTo(new ProfileAction { Type = ActionType.LaunchApp })] });
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "games");
+
+        viewModel.AddLibraryItem(noise);
+        viewModel.AddFiles([@"C:\AMD\noise.exe"]);
+
+        Assert.Empty(viewModel.Editor!.Actions);
+        Assert.Contains("Base", viewModel.Status, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DropOnProfile_AddsToThatProfile_AndSaves_WithoutOpeningIt()
+    {
+        using var services = AppTestServices.Create();
+        var noise = services.Library.Add(new LibraryItem { Name = "Noise", Target = @"C:\AMD\noise.exe" });
+        services.Base.Save(new StartupBase { Actions = [noise.ApplyTo(new ProfileAction { Type = ActionType.LaunchApp })] });
+        services.StartupApps.Entries.Add(Entry("Steam", @"C:\Steam\steam.exe", arguments: "-silent"));
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "work");
+        var games = viewModel.Profiles.First(p => p.Id == "games");
+
+        viewModel.DropOnProfile(games, viewModel.StartupApps[0]);
+        viewModel.DropOnProfile(games, viewModel.StartupApps[0]);                               // duplicate
+        viewModel.DropOnProfile(games, viewModel.Library.Items.Single(r => r.Id == noise.Id));  // Base starts it
+
+        var saved = Assert.Single(services.Profiles.Find("games")!.Actions);
+        Assert.Equal(@"C:\Steam\steam.exe", saved.Target);
+        Assert.Equal("steam", saved.LibraryItemId);
+        Assert.Equal(1, games.ActionCount);
+        Assert.Equal("work", viewModel.Editor!.Id); // the open profile did not change
+    }
+
+    [Fact]
+    public void DropOnBase_AddsToTheBase_AndThenHidesItFromProfiles()
+    {
+        using var services = AppTestServices.Create();
+        var steam = services.Library.Add(new LibraryItem { Name = "Steam", Target = @"C:\Steam\steam.exe" });
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "games");
+        var steamRow = viewModel.Library.Items.Single();
+        Assert.True(viewModel.IsOfferedInPanel(steamRow));
+
+        viewModel.DropOnProfile(viewModel.Profiles.Single(p => p.IsBase), steamRow);
+
+        Assert.Equal(steam.Id, Assert.Single(services.Base.Load().Actions).LibraryItemId);
+        Assert.False(viewModel.IsOfferedInPanel(steamRow));
+    }
+
+    [Fact]
+    public void DropOnProfile_ATableRow_CopiesItWithItsRunOptions()
+    {
+        using var services = AppTestServices.Create();
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps, services.Executor, new FakeUserPrompts());
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "work");
+        viewModel.AddActionCommand.Execute(null);
+        viewModel.SelectedAction!.Target = @"C:\Tools\vpn.exe";
+        viewModel.SelectedAction.DelaySeconds = 3;
+
+        viewModel.DropOnProfile(viewModel.Profiles.First(p => p.Id == "school"), viewModel.SelectedAction);
+
+        var copied = Assert.Single(services.Profiles.Find("school")!.Actions);
+        Assert.Equal(@"C:\Tools\vpn.exe", copied.Target);
+        Assert.Equal(TimeSpan.FromSeconds(3), copied.Delay);
     }
 
     [Fact]

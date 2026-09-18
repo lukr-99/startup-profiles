@@ -31,8 +31,11 @@
             <TextBlock Text="Profiles" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
             <Button Content="+ New" Command="{Binding NewCommand}" Margin="12,0,0,0" Padding="8,3" />
           </StackPanel>
-          <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding Selected}"
-                   Background="Transparent" BorderThickness="0" Margin="6">
+          <!-- Drop apps, library items, files, or table rows on a profile (or Base) to add them there, saved. -->
+          <ListBox x:Name="ProfileList" ItemsSource="{Binding Profiles}" SelectedItem="{Binding Selected}"
+                   Background="Transparent" BorderThickness="0" Margin="6" AllowDrop="True"
+                   DragEnter="OnProfileListDragOver" DragOver="OnProfileListDragOver"
+                   DragLeave="OnProfileListDragLeave" Drop="OnProfileListDrop">
             <!-- The base is pinned first and set apart from the profiles below it. -->
             <ListBox.ItemContainerStyle>
               <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
@@ -45,16 +48,31 @@
             </ListBox.ItemContainerStyle>
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <StackPanel>
-                  <DockPanel>
-                    <TextBlock Text="{Binding ActionCount}" DockPanel.Dock="Right"
-                               Foreground="{DynamicResource App.Muted}" />
-                    <TextBlock Text="{Binding Name}" />
-                  </DockPanel>
-                  <TextBlock Text="Starts with every profile" FontSize="11" Margin="0,2,0,0"
-                             Foreground="{DynamicResource App.Muted}"
-                             Visibility="{Binding IsBase, Converter={StaticResource BoolToVis}}" />
-                </StackPanel>
+                <!-- Fills the row (negative margin = the item padding) so a drop target lights up whole. -->
+                <Border Margin="-9,-7" Padding="9,7" CornerRadius="5" BorderThickness="1">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Background" Value="Transparent" />
+                      <Setter Property="BorderBrush" Value="Transparent" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
+                          <Setter Property="Background" Value="{DynamicResource App.SurfaceHover}" />
+                          <Setter Property="BorderBrush" Value="{DynamicResource App.Accent}" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+                  <StackPanel>
+                    <DockPanel>
+                      <TextBlock Text="{Binding ActionCount}" DockPanel.Dock="Right"
+                                 Foreground="{DynamicResource App.Muted}" />
+                      <TextBlock Text="{Binding Name}" />
+                    </DockPanel>
+                    <TextBlock Text="Starts with every profile" FontSize="11" Margin="0,2,0,0"
+                               Foreground="{DynamicResource App.Muted}"
+                               Visibility="{Binding IsBase, Converter={StaticResource BoolToVis}}" />
+                  </StackPanel>
+                </Border>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
@@ -217,7 +235,7 @@
                 <DockPanel DockPanel.Dock="Top" Margin="12,8,12,2">
                   <Button Content="Refresh" Command="{Binding RefreshStartupAppsCommand}" DockPanel.Dock="Right"
                           Padding="8,3" VerticalAlignment="Top" ToolTip="Read the startup apps from Windows again" />
-                  <TextBlock Text="Apps Windows starts at login. Drag one into a table (it is kept in Created), or double-click it."
+                  <TextBlock Text="Apps Windows starts at login. Drag one into a table or onto a profile (it is kept in Created), or double-click it. Anything Base starts is hidden while you edit a profile."
                              FontSize="11" Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,0,8,0" />
                 </DockPanel>
                 <ListBox x:Name="StartupAppsList" ItemsSource="{Binding StartupApps}" Margin="6"
@@ -254,7 +272,7 @@
                 <DockPanel DockPanel.Dock="Top" Margin="12,8,12,2">
                   <Button Content="+ New" Command="{Binding Library.NewCommand}" DockPanel.Dock="Right"
                           Padding="8,3" VerticalAlignment="Top" />
-                  <TextBlock Text="Set things up once, then drag them into any table. Drop table rows, defaults, or files from Explorer here to keep them."
+                  <TextBlock Text="Set things up once, then drag them into a table or onto a profile - it saves right away. Drop table rows, defaults, or files from Explorer here to keep them."
                              FontSize="11" Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,0,8,0" />
                 </DockPanel>
 

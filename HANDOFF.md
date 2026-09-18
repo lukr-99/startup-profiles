@@ -20,7 +20,13 @@ dotnet test StartupProfiles.slnx -c Release
 dotnet format StartupProfiles.slnx --verify-no-changes
 ```
 
-- Build is clean (0 warnings, warnings-as-errors on) and 166 tests pass.
+- Build is clean (0 warnings, warnings-as-errors on) and 171 tests pass.
+- **Run `install.ps1` / `uninstall.ps1` (and anything that reads or writes the app's data or HKCU) from a
+  normal terminal, not from a process started inside a packaged (MSIX) app such as the Claude desktop app.**
+  Windows redirects AppData and some HKCU writes from packaged processes into a private per-package copy
+  (`%LOCALAPPDATA%\Packages\<pfn>\LocalCache\...`), so the install silently lands in the wrong place and
+  that process sees a different data folder than the real app. Launching through `explorer.exe` breaks out
+  of the package context; the app's loopback API is unaffected and safe to use from anywhere.
 - Run the app: `dotnet run --project src/StartupProfiles.App` (add `--headless` for the API only,
   `--port N` to override the port, default 8790).
 - Data lives in `%APPDATA%\StartupProfiles` (`profiles.json`, `config.json`, `history.json`,
@@ -184,7 +190,14 @@ Drag and drop (view plumbing in `ConfigWindow.xaml.cs`, behaviour in `ConfigView
 - Defaults item or Explorer files/folders -> Created: saved. Explorer files -> table: saved and linked
   (`.exe` -> LaunchApp, folder -> OpenFolder, else OpenFile).
 - Dropping on a row inserts above it, elsewhere appends; an item already in the table is selected (and
-  linked) instead of added twice. Table changes persist on Save; library changes persist immediately.
+  linked) instead of added twice.
+- Anything dropped onto a sidebar profile (or Base) is added to it without opening it
+  (`ConfigViewModel.DropOnProfile`): panel items, Explorer files, or a copied table row.
+- Drops, double-click adds, drag reorder, and Move up/down save immediately; typed cell edits and
+  "Remove row" still wait for Save. Library changes persist immediately.
+- While a profile that includes the base is edited, the panel hides anything the base already starts
+  (`IsOfferedInPanel`, applied as a `CollectionView` filter refreshed on `PanelFilterChanged`), and adding
+  such an item to that profile is refused.
 
 Not yet: the install-time startup takeover still adds standalone copies to Everything (drag those rows
 into Created to link them), and profile export/import does not include the library. The drag gestures

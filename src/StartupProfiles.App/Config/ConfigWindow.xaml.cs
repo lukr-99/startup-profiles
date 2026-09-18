@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using Point = System.Windows.Point;
@@ -37,6 +38,18 @@ public partial class ConfigWindow : Window
         ThemeBox.SelectedIndex = (int)current;
         var version = typeof(ConfigWindow).Assembly.GetName().Version;
         VersionText.Text = version is null ? "Startup Profiles" : $"Startup Profiles {version.Major}.{version.Minor}.{version.Build}";
+
+        // The side panel hides what Base already starts while a profile is being edited.
+        var startupApps = CollectionViewSource.GetDefaultView(viewModel.StartupApps);
+        var libraryItems = CollectionViewSource.GetDefaultView(viewModel.Library.Items);
+        startupApps.Filter = viewModel.IsOfferedInPanel;
+        libraryItems.Filter = viewModel.IsOfferedInPanel;
+        viewModel.PanelFilterChanged += () =>
+        {
+            startupApps.Refresh();
+            libraryItems.Refresh();
+        };
+
         _ready = true;
     }
 
@@ -156,6 +169,40 @@ public partial class ConfigWindow : Window
         if (sender is not TextBox box) return;
         box.Focus();
         box.SelectAll();
+    }
+
+    // ----- Sidebar: drop onto a profile (or Base) to add there, saved, without opening it -----
+
+    private ProfileListItem? _dropTarget;
+
+    private void OnProfileListDragOver(object sender, DragEventArgs e)
+    {
+        var target = ItemUnder<ListBoxItem>(e.OriginalSource)?.DataContext as ProfileListItem;
+        var accepts = target is not null && Payload(e) is StartupAppItem or LibraryItemRow or ActionEditor or string[];
+        SetDropTarget(accepts ? target : null);
+        e.Effects = accepts ? DragDropEffects.Link : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnProfileListDragLeave(object sender, DragEventArgs e) => SetDropTarget(null);
+
+    private void OnProfileListDrop(object sender, DragEventArgs e)
+    {
+        var target = _dropTarget;
+        SetDropTarget(null);
+        e.Handled = true;
+        if (target is null || Payload(e) is not { } payload) return;
+
+        CommitGridEdits();
+        _viewModel.DropOnProfile(target, payload);
+    }
+
+    private void SetDropTarget(ProfileListItem? target)
+    {
+        if (ReferenceEquals(_dropTarget, target)) return;
+        if (_dropTarget is not null) _dropTarget.IsDropTarget = false;
+        _dropTarget = target;
+        if (target is not null) target.IsDropTarget = true;
     }
 
     // ----- Created list: keep table rows, defaults, and Explorer files in the library -----

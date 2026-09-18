@@ -10,6 +10,7 @@ public sealed class ProfileListItem : ObservableObject
 {
     private string _name;
     private int _actionCount;
+    private bool _isDropTarget;
 
     public ProfileListItem(string id, string name, int actionCount, bool isBase = false)
     {
@@ -23,4 +24,7 @@ public sealed class ProfileListItem : ObservableObject
     public bool IsBase { get; }
     public string Name { get => _name; set => SetProperty(ref _name, value); }
     public int ActionCount { get => _actionCount; set => SetProperty(ref _actionCount, value); }
+
+    /// <summary>True while something is dragged over the row (the window highlights it as a drop target).</summary>
+    public bool IsDropTarget { get => _isDropTarget; set => SetProperty(ref _isDropTarget, value); }
 }
