@@ -11,13 +11,13 @@ internal sealed class FakeProfileRegistrar : IProfileRegistrar
     public FakeProfileRegistrar(RegistrationException? throws = null) => _throws = throws;
 
     public RegistrationRequest? AppliedRequest { get; private set; }
-    public IReadOnlyCollection<string>? AppliedProfileIds { get; private set; }
+    public RegistrationTargets? AppliedTargets { get; private set; }
 
-    public RegistrationOutcome Apply(RegistrationRequest request, IReadOnlyCollection<string> profileIds)
+    public RegistrationOutcome Apply(RegistrationRequest request, RegistrationTargets targets)
     {
         if (_throws is not null) throw _throws;
         AppliedRequest = request;
-        AppliedProfileIds = profileIds;
-        return new RegistrationOutcome([.. profileIds], [], []);
+        AppliedTargets = targets;
+        return new RegistrationOutcome([.. targets.ProfileIds], [], [], "example-app", true, targets.IncludeBase);
     }
 }

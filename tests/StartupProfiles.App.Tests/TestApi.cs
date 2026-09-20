@@ -65,7 +65,10 @@ internal sealed class TestApi : IAsyncDisposable
         builder.Services.AddSingleton(sp => new ProfileRunner(sp.GetRequiredService<ActionHandlerRegistry>(), new TaskDelayer()));
         builder.Services.AddSingleton<ProfileExecutor>();
         builder.Services.AddSingleton<ConfirmationService>();
-        builder.Services.AddSingleton<IProfileRegistrar>(sp => new ProfileRegistrar(sp.GetRequiredService<IProfileStore>()));
+        builder.Services.AddSingleton<IProfileRegistrar>(sp => new ProfileRegistrar(
+            sp.GetRequiredService<IProfileStore>(),
+            sp.GetRequiredService<IBaseStore>(),
+            sp.GetRequiredService<Core.Library.LibraryService>()));
 
         var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");

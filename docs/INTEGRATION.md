@@ -24,10 +24,15 @@ It never silently adds itself.
 3. It invokes the Startup Profiles registration contract (protocol or CLI).
 4. Startup Profiles opens **its own trusted** registration window.
 5. The window shows the requesting application's information.
-6. The user chooses where it belongs: Work / Dev / School / Games / Chill / Everything /
-   multiple profiles / **Don't add**.
+6. The user chooses where it belongs: the **Base** (which runs before every profile) / Work /
+   Dev / School / Games / Chill / Everything / multiple destinations / **Just recognize** /
+   **Don't add**.
 7. Startup Profiles stores the configuration.
 8. The requesting application receives a success / cancelled result if appropriate.
+
+**Just recognize** is the third answer to "where does this belong?": the app is kept in the global
+library and nothing is started anywhere, so the user can drag it into a profile whenever they want.
+Every registration goes through the library, so an app added to a profile is editable in one place.
 
 ## Transport (proposed)
 
@@ -67,12 +72,12 @@ External applications must **not** be able to:
 - add themselves silently,
 - modify existing profiles without consent,
 - remove other applications,
-- automatically assign themselves to `Everything`,
+- automatically assign themselves to `Everything` or to the base,
 - execute arbitrary Startup Profiles configuration changes.
 
 Every registration results in a **Startup Profiles-owned confirmation UI**. The requesting
 app supplies metadata and a request - not configuration authority. A suggested profile is a
-hint; the user always chooses, and `Everything` is never auto-selected.
+hint; the user always chooses, and neither `Everything` nor the base is ever auto-selected.
 
 ## CodePrint convention
 
@@ -88,9 +93,12 @@ When designing a CodePrint Windows application, consider Startup Profiles integr
 The contract is realised in two layers:
 
 - **`StartupProfiles.Core/Integration`** (portable): `RegistrationRequest` is the metadata an app
-  supplies; `RegistrationRequestParser` parses both transports through one shared field mapping and
-  validation; `ProfileRegistrar` applies an approved request by appending a launch action to the
-  chosen profiles (idempotent per target, never creating profiles or touching unlisted ones).
+  supplies; `RegistrationTargets` is where the user chose to put it (profiles, the base, or neither);
+  `RegistrationRequestParser` parses both transports through one shared field mapping and validation;
+  `ProfileRegistrar` applies an approved request by keeping the app in the global library and appending
+  an action linked to that item to each chosen destination (idempotent per target, never creating
+  profiles or touching unlisted ones). A profile that includes the base is skipped when the base
+  already starts the app, so it is never launched twice.
 - **`StartupProfiles.App/Integration`** (host): the entry points and the trusted window.
 
 Three ways to reach it:
@@ -104,11 +112,13 @@ Three ways to reach it:
 3. **Loopback API** - `POST /api/register` for local agents (see [API.md](API.md)).
 
 The protocol and CLI forms open a **Startup Profiles-owned** confirmation window: it shows the
-requesting app's name, publisher, and target, and a checklist of profiles. A `suggestedProfile` only
-pre-ticks that one profile as a hint - never `Everything` - and the user must click **Add**. Because a
-running instance caches profiles in memory, a one-shot `register` process routes its write through the
-running instance's loopback API when one is live (keeping a single writer of `profiles.json`), and
-writes directly only when no instance is running.
+requesting app's icon, name, publisher, and target, and a scrolling checklist of destinations - the
+base first, then every profile, each with what it already starts. A `suggestedProfile` only pre-ticks
+that one profile as a hint - never `Everything`, never the base - and the user must click **Add**, or
+**Just recognize** to keep it in the library only. Because a running instance caches profiles in
+memory, a one-shot `register` process routes its write through the running instance's loopback API
+when one is live (keeping a single writer of `profiles.json`), and writes directly only when no
+instance is running.
 
 ## Future contract expansion
 

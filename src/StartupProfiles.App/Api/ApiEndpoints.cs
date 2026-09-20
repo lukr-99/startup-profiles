@@ -132,32 +132,44 @@ public static class ApiEndpoints
             if (string.IsNullOrWhiteSpace(body.Name)) return Reject("Registration is missing 'name'.");
             if (string.IsNullOrWhiteSpace(body.Target)) return Reject("Registration is missing 'target'.");
 
-            var profileIds = body.ProfileIds ?? [];
-            if (profileIds.Length == 0) return Reject("Choose at least one profile to add the app to.");
+            // No destination at all is a valid request: the app is only recognized (kept in the library),
+            // which is what the confirmation window's "Just recognize" sends.
+            var targets = body.ToTargets();
 
-            var signature = ConfirmationService.Signature("integration.register", RegisterSignature(body.AppId, body.Target, profileIds));
+            var signature = ConfirmationService.Signature("integration.register", RegisterSignature(body.AppId, body.Target, targets));
             if (!confirm.TryConsume(confirmToken, signature))
-                return Results.Ok(new ConfirmationRequired(true, confirm.Issue(signature),
-                    $"Add '{body.Name}' to: {string.Join(", ", profileIds)}."));
+                return Results.Ok(new ConfirmationRequired(true, confirm.Issue(signature), DescribeRegistration(body.Name, targets)));
 
-            var outcome = registrar.Apply(body.ToRequest(), profileIds);
+            var outcome = registrar.Apply(body.ToRequest(), targets);
             return Results.Ok(new RegistrationResponse(true, outcome, SummarizeRegistration(outcome)));
         });
     }
 
     private static IResult Reject(string error) => Results.BadRequest(new OperationResult(false, null, error));
 
-    // Bind the confirmation token to the exact app and destination profiles so it cannot be replayed
-    // to register a different app, or the same app into profiles the caller never previewed.
-    private static string RegisterSignature(string appId, string target, IEnumerable<string> profileIds) =>
-        $"{appId}|{target}|{string.Join(',', profileIds.OrderBy(p => p, StringComparer.OrdinalIgnoreCase))}";
+    // Bind the confirmation token to the exact app and destinations so it cannot be replayed to register a
+    // different app, or the same app into profiles (or the base) the caller never previewed.
+    private static string RegisterSignature(string appId, string target, RegistrationTargets targets) =>
+        $"{appId}|{target}|{targets.IncludeBase}|{string.Join(',', targets.ProfileIds.OrderBy(p => p, StringComparer.OrdinalIgnoreCase))}";
+
+    private static string DescribeRegistration(string? name, RegistrationTargets targets)
+    {
+        if (targets.IsLibraryOnly) return $"Keep '{name}' in the library, without adding it to a profile.";
+
+        IEnumerable<string> destinations = targets.IncludeBase ? ["base", .. targets.ProfileIds] : targets.ProfileIds;
+        return $"Add '{name}' to: {string.Join(", ", destinations)}.";
+    }
 
     private static string SummarizeRegistration(RegistrationOutcome outcome)
     {
         var parts = new List<string>();
+        if (outcome.AddedToBase) parts.Add("added to base");
+        if (outcome.AlreadyInBase) parts.Add("already in base");
         if (outcome.AddedTo.Count > 0) parts.Add($"added to {string.Join(", ", outcome.AddedTo)}");
         if (outcome.AlreadyPresentIn.Count > 0) parts.Add($"already in {string.Join(", ", outcome.AlreadyPresentIn)}");
         if (outcome.UnknownProfileIds.Count > 0) parts.Add($"unknown: {string.Join(", ", outcome.UnknownProfileIds)}");
+        if (outcome.LibraryItemId is { } item)
+            parts.Add(outcome.AddedToLibrary ? $"kept in the library as '{item}'" : $"already in the library as '{item}'");
         return parts.Count > 0 ? string.Join("; ", parts) : "No changes.";
     }
 

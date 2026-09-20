@@ -237,13 +237,59 @@ public sealed class ApiEndpointsTests
     }
 
     [Fact]
-    public async Task Register_NoProfiles_IsBadRequest()
+    public async Task Register_WithNoDestination_OnlyRecognizesTheAppInTheLibrary()
     {
         await using var api = await TestApi.StartAsync();
         var body = new { appId = "com.example.app", name = "Example App", target = @"C:\Apps\example.exe" };
 
-        var response = await api.Client.PostAsJsonAsync("/api/register", body);
+        var first = await api.Client.PostAsJsonAsync("/api/register", body);
+        var token = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("confirmToken").GetString();
+        var confirmed = await api.Client.PostAsJsonAsync($"/api/register?confirmToken={token}", body);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var result = await confirmed.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(result.GetProperty("ok").GetBoolean());
+        Assert.True(result.GetProperty("outcome").GetProperty("addedToLibrary").GetBoolean());
+
+        var library = await api.Client.GetFromJsonAsync<JsonElement>("/api/library");
+        Assert.Equal(1, library.GetArrayLength());
+        var dev = await api.Client.GetFromJsonAsync<Profile>("/api/profiles/dev", TestApi.Json);
+        Assert.Empty(dev!.Actions);
+    }
+
+    [Fact]
+    public async Task Register_WithIncludeBase_AddsTheLaunchActionToTheBase()
+    {
+        await using var api = await TestApi.StartAsync();
+        var body = new { appId = "com.example.app", name = "Example App", target = @"C:\Apps\example.exe", includeBase = true };
+
+        var first = await api.Client.PostAsJsonAsync("/api/register", body);
+        var preview = await first.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("base", preview.GetProperty("summary").GetString()!, StringComparison.Ordinal);
+
+        var confirmed = await api.Client.PostAsJsonAsync(
+            $"/api/register?confirmToken={preview.GetProperty("confirmToken").GetString()}", body);
+        Assert.True((await confirmed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("ok").GetBoolean());
+
+        var baseValue = await api.Client.GetFromJsonAsync<StartupBase>("/api/base", TestApi.Json);
+        var action = Assert.Single(baseValue!.Actions);
+        Assert.Equal(@"C:\Apps\example.exe", action.Target);
+    }
+
+    [Fact]
+    public async Task Register_TokenIsBoundToTheBaseChoice()
+    {
+        await using var api = await TestApi.StartAsync();
+        var forDev = new { appId = "com.example.app", name = "Example App", target = @"C:\Apps\example.exe", profileIds = new[] { "dev" } };
+
+        var first = await api.Client.PostAsJsonAsync("/api/register", forDev);
+        var token = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("confirmToken").GetString();
+
+        // Flipping includeBase on must not consume a token issued for the profile-only preview.
+        var alsoBase = new { forDev.appId, forDev.name, forDev.target, forDev.profileIds, includeBase = true };
+        var replayed = await api.Client.PostAsJsonAsync($"/api/register?confirmToken={token}", alsoBase);
+
+        Assert.True((await replayed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("required").GetBoolean());
+        var baseValue = await api.Client.GetFromJsonAsync<StartupBase>("/api/base", TestApi.Json);
+        Assert.Empty(baseValue!.Actions);
     }
 }

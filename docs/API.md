@@ -30,7 +30,7 @@ All request/response bodies are JSON. Operation endpoints return
 | DELETE | `/api/profiles/{id}` | Delete a profile (two-phase confirm, see below). |
 | POST | `/api/profiles/{id}/run` | Execute a profile now, record history, return the run. |
 | GET | `/api/history` | Recent execution runs (`?take=` to limit). |
-| POST | `/api/register` | Request that an app be added to profiles (two-phase confirm; see INTEGRATION.md). |
+| POST | `/api/register` | Request that an app be added to profiles and/or the base (two-phase confirm; see INTEGRATION.md). |
 
 All bodies are JSON, camelCase, with enums as camelCase strings.
 
@@ -51,8 +51,8 @@ action, single-use, and expires quickly, so an agent cannot skip the prompt.
 ## Registration
 
 `POST /api/register` lets a local agent or app request that an application be added to one or more
-profiles. Startup Profiles owns the decision, so it uses the same two-phase confirmation as delete: an
-app is never added silently.
+profiles, to the base, or to neither. Startup Profiles owns the decision, so it uses the same two-phase
+confirmation as delete: an app is never added silently.
 
 Request body:
 
@@ -65,15 +65,23 @@ Request body:
   "publisher": "Example Inc",
   "suggestedProfile": "dev",
   "supportsMinimized": true,
-  "profileIds": ["dev", "games"]
+  "profileIds": ["dev", "games"],
+  "includeBase": false
 }
 ```
 
-`appId`, `name`, `target`, and a non-empty `profileIds` are required; `suggestedProfile` is a hint only
-and is not applied on its own. The first call returns `{ required: true, confirmToken, summary }` with a
-human-readable summary of the change and adds nothing. Resubmit the **same body** as
-`POST /api/register?confirmToken=<token>` to apply it; the response is
-`{ ok: true, output }`, where `output` names the profiles the app was added to, was already in, or that
-were unknown. The token is bound to the app and the exact `profileIds`, is single-use, and expires
-quickly, so it cannot be replayed against a different app or profile set. Adding the same target to a
-profile twice is idempotent (reported as "already in").
+`appId`, `name`, and `target` are required; `suggestedProfile` is a hint only and is not applied on its
+own. `profileIds` and `includeBase` say where the app should land - an empty `profileIds` with
+`includeBase: false` is the "just recognize" case, which only keeps the app in the library. The first
+call returns `{ required: true, confirmToken, summary }` with a human-readable summary of the change and
+adds nothing. Resubmit the **same body** as `POST /api/register?confirmToken=<token>` to apply it; the
+response is `{ ok: true, outcome, output }`, where `outcome` carries `addedTo`, `alreadyPresentIn`,
+`unknownProfileIds`, `libraryItemId`, `addedToLibrary`, `addedToBase`, and `alreadyInBase`, and `output`
+says the same in one line. The token is bound to the app and the exact destinations (profiles *and* the
+base flag), is single-use, and expires quickly, so it cannot be replayed against a different app or a
+different destination set.
+
+Every registration goes through the library: the app is kept as a library item (reusing the item that
+already starts the same thing), and each action added links to it via `libraryItemId`. Adding the same
+target to the same destination twice is idempotent (reported as "already in"), and a profile that
+includes the base is skipped when the base already starts the app, so it never launches twice.

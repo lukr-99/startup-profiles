@@ -20,7 +20,7 @@ dotnet test StartupProfiles.slnx -c Release
 dotnet format StartupProfiles.slnx --verify-no-changes
 ```
 
-- Build is clean (0 warnings, warnings-as-errors on) and 171 tests pass.
+- Build is clean (0 warnings, warnings-as-errors on) and 191 tests pass.
 - **Run `install.ps1` / `uninstall.ps1` (and anything that reads or writes the app's data or HKCU) from a
   normal terminal, not from a process started inside a packaged (MSIX) app such as the Claude desktop app.**
   Windows redirects AppData and some HKCU writes from packaged processes into a private per-package copy
@@ -65,11 +65,19 @@ Key design points:
 
 `Core/Integration` (portable) + `App/Integration` (host) implement the contract from
 [docs/INTEGRATION.md](docs/INTEGRATION.md). `RegistrationRequestParser` parses both the
-`startupprofiles://register?...` URI and the `register --app-id ...` CLI form; `ProfileRegistrar`
-appends a launch action to the chosen profiles (idempotent per target). Three entry points feed one
+`startupprofiles://register?...` URI and the `register --app-id ...` CLI form; `RegistrationTargets` is
+where the user chose to put the app, and `ProfileRegistrar` keeps it in the global library and appends a
+linked launch action to each chosen destination (idempotent per target). Three entry points feed one
 trusted, Startup Profiles-owned confirmation window: the protocol, the CLI, and `POST /api/register`
 (two-phase confirm, like delete). A one-shot `register` invocation routes its write through a running
 instance's loopback API when one is live, so the running app stays the single writer of `profiles.json`.
+
+The window offers three answers: **Add** to the ticked destinations, **Just recognize** (library only, to
+drag into a profile later), or **Don't add**. Destinations are the **Base** pinned first, then every
+profile, each with its glyph and what it already starts, in a scrolling list; the window is resizable and
+capped to the screen's work area. A profile that includes the base is reported as "already in" when the
+base starts the app, so it never launches twice. `POST /api/register` mirrors all of it: `includeBase`
+plus `profileIds`, and an empty pair is the recognize-only case.
 
 One deliberate gap: **registering the `startupprofiles://` scheme with Windows is left to the installer**
 (below). Until then, invoke the exe with the URI directly. `supportsMinimized` is carried as metadata

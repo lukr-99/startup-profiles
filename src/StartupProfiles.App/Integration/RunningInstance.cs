@@ -36,13 +36,21 @@ public sealed class RunningInstance
         }
     }
 
-    /// <summary>Fetches the current profile list from the running instance for the choice UI.</summary>
-    public IReadOnlyList<ProfileChoice> GetProfiles()
+    /// <summary>Fetches the destinations the window offers - the base, then every profile - from the running instance.</summary>
+    public IReadOnlyList<RegistrationChoice> GetChoices()
     {
         using var http = new HttpClient { BaseAddress = _baseAddress, Timeout = TimeSpan.FromSeconds(5) };
+        var health = http.GetFromJsonAsync<HealthDto>("/api/health").GetAwaiter().GetResult();
         var summaries = http.GetFromJsonAsync<List<ProfileSummaryDto>>("/api/profiles").GetAwaiter().GetResult() ?? [];
-        return summaries.Select(s => new ProfileChoice(s.Id, s.Name)).ToList();
+
+        return
+        [
+            RegistrationChoice.ForBase(health?.BaseActions ?? 0),
+            .. summaries.Select(s => RegistrationChoice.ForProfile(s.Id, s.Name, s.Icon, s.ActionCount)),
+        ];
     }
 
-    private sealed record ProfileSummaryDto(string Id, string Name);
+    private sealed record HealthDto(int BaseActions);
+
+    private sealed record ProfileSummaryDto(string Id, string Name, string? Icon, int ActionCount);
 }

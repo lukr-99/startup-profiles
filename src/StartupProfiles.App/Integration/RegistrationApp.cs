@@ -1,6 +1,7 @@
 using System.Windows;
 using StartupProfiles.App.Themes;
 using StartupProfiles.Core.Integration;
+using StartupProfiles.Core.Library;
 using StartupProfiles.Core.Storage;
 
 namespace StartupProfiles.App.Integration;
@@ -22,11 +23,6 @@ internal static class RegistrationApp
         }
 
         var (choices, registrar) = Compose();
-        if (choices.Count == 0)
-        {
-            ShowError("No startup profiles are configured yet. Create one in Startup Profiles first.");
-            return;
-        }
 
         var app = new Application { ShutdownMode = ShutdownMode.OnLastWindowClose };
         app.DispatcherUnhandledException += (_, e) =>
@@ -42,15 +38,22 @@ internal static class RegistrationApp
         app.Run(window);
     }
 
-    private static (IReadOnlyList<ProfileChoice> Choices, IProfileRegistrar Registrar) Compose()
+    private static (IReadOnlyList<RegistrationChoice> Choices, IProfileRegistrar Registrar) Compose()
     {
         if (RunningInstance.Discover() is { } instance)
-            return (instance.GetProfiles(), instance.Registrar);
+            return (instance.GetChoices(), instance.Registrar);
 
-        // No live instance: this process is the sole writer, so a direct store write is safe.
-        var store = new ProfileStore();
-        var choices = store.GetAll().Select(p => new ProfileChoice(p.Id, p.Name)).ToList();
-        return (choices, new ProfileRegistrar(store));
+        // No live instance: this process is the sole writer, so direct store writes are safe.
+        var profiles = new ProfileStore();
+        var baseStore = new BaseStore();
+        var library = new LibraryService(new LibraryStore(), profiles, baseStore);
+
+        IReadOnlyList<RegistrationChoice> choices =
+        [
+            RegistrationChoice.ForBase(baseStore.Load().Actions.Count),
+            .. profiles.GetAll().Select(p => RegistrationChoice.ForProfile(p.Id, p.Name, p.Icon, p.Actions.Count)),
+        ];
+        return (choices, new ProfileRegistrar(profiles, baseStore, library));
     }
 
     private static void ShowError(string message) =>

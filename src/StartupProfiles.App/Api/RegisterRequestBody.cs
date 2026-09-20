@@ -3,9 +3,11 @@ using StartupProfiles.Core.Integration;
 namespace StartupProfiles.App.Api;
 
 /// <summary>
-/// Request body for <c>POST /api/register</c>: the requesting app's metadata plus the profiles the
-/// caller wants it added to. Fields are nullable so a malformed body yields a clean validation error
-/// instead of a deserialization failure; <see cref="ToRequest"/> maps a validated body to the Core type.
+/// Request body for <c>POST /api/register</c>: the requesting app's metadata plus where the caller wants
+/// it added - any number of profiles, the base, or neither (which just keeps it in the library). Fields
+/// are nullable so a malformed body yields a clean validation error instead of a deserialization failure;
+/// <see cref="ToRequest"/> maps a validated body to the Core type and <see cref="ToTargets"/> to its
+/// destinations.
 /// </summary>
 public sealed record RegisterRequestBody(
     string? AppId,
@@ -16,8 +18,12 @@ public sealed record RegisterRequestBody(
     string? Publisher = null,
     string? SuggestedProfile = null,
     bool SupportsMinimized = false,
-    string[]? ProfileIds = null)
+    string[]? ProfileIds = null,
+    bool IncludeBase = false)
 {
+    public RegistrationTargets ToTargets() =>
+        RegistrationTargets.For(ProfileIds ?? [], IncludeBase);
+
     public RegistrationRequest ToRequest() => new()
     {
         AppId = AppId!.Trim(),

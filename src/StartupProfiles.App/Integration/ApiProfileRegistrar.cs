@@ -25,11 +25,12 @@ public sealed class ApiProfileRegistrar : IProfileRegistrar
 
     public ApiProfileRegistrar(Uri baseAddress) => _baseAddress = baseAddress;
 
-    public RegistrationOutcome Apply(RegistrationRequest request, IReadOnlyCollection<string> profileIds)
+    public RegistrationOutcome Apply(RegistrationRequest request, RegistrationTargets targets)
     {
         var body = new RegisterRequestBody(
             request.AppId, request.Name, request.Target, request.Arguments, request.Icon,
-            request.Publisher, request.SuggestedProfile, request.SupportsMinimized, [.. profileIds]);
+            request.Publisher, request.SuggestedProfile, request.SupportsMinimized,
+            [.. targets.ProfileIds], targets.IncludeBase);
 
         try
         {
