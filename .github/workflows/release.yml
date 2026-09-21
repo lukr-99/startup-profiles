@@ -38,9 +38,34 @@ jobs:
           -p:Version=${{ steps.ver.outputs.version }}
           -o publish
 
+      # Sign before zipping. A zip carries no signature of its own, so the executables inside are
+      # the only thing SmartScreen can check once the user extracts them.
+      # Until a certificate exists this warns and continues; once WINDOWS_CERT_PFX_BASE64 is set it
+      # signs and verifies. Add -Require then. See CodePrint docs/release-signing.md.
+      - name: Sign executables
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: >-
+          ./tools/sign-windows-artifacts.ps1
+          -Path 'publish/StartupProfiles*.exe'
+          -Description 'Startup Profiles'
+          -DescriptionUrl 'https://github.com/lukr-99/startup-profiles'
+
       - name: Package
         shell: pwsh
         run: Compress-Archive -Path publish\* -DestinationPath StartupProfiles-${{ steps.ver.outputs.version }}-win-x64.zip
+
+      - name: Report signing status
+        if: always()
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path 'publish/StartupProfiles*.exe' -ErrorAction SilentlyContinue
+          foreach ($file in $files) {
+            $status = (Get-AuthenticodeSignature -LiteralPath $file.FullName).Status
+            "- $($file.Name): $status" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
