@@ -10,7 +10,7 @@ Nothing is released yet. The first release will be 0.1.0, with this baseline:
 - A login launcher that asks what you are about to do and runs only that profile's actions: apps,
   URLs, scripts, folders, services, VPN, delays, waits, and kills.
 - A configuration window with Profiles and Settings tabs, emoji profile icons, and light, dark, and
-  system themes.
+  system themes. The system theme follows Windows while the app runs.
 - The base: actions that run before every profile, unless a profile opts out with **Include base**.
 - A global library of startable items. Profile rows link to library items, and a side panel offers
   the apps Windows starts at login and lets you drag them into profiles.
