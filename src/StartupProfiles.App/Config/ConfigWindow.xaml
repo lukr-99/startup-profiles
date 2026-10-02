@@ -574,6 +574,11 @@
           <ComboBoxItem Content="Dark" />
         </ComboBox>
 
+        <TextBlock Text="Startup apps" FontSize="15" FontWeight="SemiBold" Margin="0,26,0,8" />
+        <CheckBox Content="Check for new startup apps when Startup Profiles starts" IsChecked="{Binding DiscoverStartupApps}" />
+        <TextBlock Text="When an app sets itself to start with Windows, you choose which profile it belongs to."
+                   Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="26,4,0,0" />
+
         <TextBlock Text="Profiles data" FontSize="15" FontWeight="SemiBold" Margin="0,26,0,8" />
         <TextBlock Text="Export all profiles to a JSON file, or import them from one."
                    Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,0,0,10" />

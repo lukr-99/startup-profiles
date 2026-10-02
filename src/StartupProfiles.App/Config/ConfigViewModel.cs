@@ -35,6 +35,7 @@ public sealed class ConfigViewModel : ObservableObject
     private readonly ProfileExecutor _executor;
     private readonly IUserPrompts _prompts;
     private readonly ISaveScheduler _saves;
+    private readonly IConfigStore? _config;
 
     private readonly RelayCommand _saveCommand;
     private readonly RelayCommand _undoRemoveCommand;
@@ -55,6 +56,7 @@ public sealed class ConfigViewModel : ObservableObject
     private RemovedRow? _lastRemoved;
 
     /// <param name="saveScheduler">When edits are written; saves at once when omitted (tests).</param>
+    /// <param name="config">App settings shown on the Settings tab; those settings are hidden when omitted.</param>
     public ConfigViewModel(
         IProfileStore profiles,
         IBaseStore baseStore,
@@ -62,7 +64,8 @@ public sealed class ConfigViewModel : ObservableObject
         IStartupAppCatalog startupCatalog,
         ProfileExecutor executor,
         IUserPrompts prompts,
-        ISaveScheduler? saveScheduler = null)
+        ISaveScheduler? saveScheduler = null,
+        IConfigStore? config = null)
     {
         _profiles = profiles;
         _base = baseStore;
@@ -70,6 +73,7 @@ public sealed class ConfigViewModel : ObservableObject
         _executor = executor;
         _prompts = prompts;
         _saves = saveScheduler ?? new ImmediateSaveScheduler();
+        _config = config;
 
         Library = new LibraryPanel(library, prompts);
         Library.ItemSaved += RelinkRows;
@@ -151,6 +155,18 @@ public sealed class ConfigViewModel : ObservableObject
 
     /// <summary>True right after a row was removed from the open profile, until another row is removed or it is reopened.</summary>
     public bool CanUndoRemove => _lastRemoved is { } removed && ReferenceEquals(removed.Editor, Editor);
+
+    /// <summary>Whether the app looks for new Windows startup apps when it starts (on unless turned off).</summary>
+    public bool DiscoverStartupApps
+    {
+        get => !string.Equals(_config?.GetValue(AppSettingKeys.DiscoverStartupApps), "false", StringComparison.OrdinalIgnoreCase);
+        set
+        {
+            if (_config is null || value == DiscoverStartupApps) return;
+            _config.SetValue(AppSettingKeys.DiscoverStartupApps, value ? null : "false");
+            OnPropertyChanged();
+        }
+    }
 
     public ICommand NewCommand { get; }
     public ICommand SaveCommand => _saveCommand;

@@ -30,7 +30,7 @@ dotnet format StartupProfiles.slnx --verify-no-changes
 - Run the app: `dotnet run --project src/StartupProfiles.App` (add `--headless` for the API only,
   `--port N` to override the port, default 8790).
 - Data lives in `%APPDATA%\StartupProfiles` (`profiles.json`, `config.json`, `history.json`,
-  `endpoint.json`, `startup-takeover.json`, `base.json`, `library.json`). Nothing leaves the machine.
+  `endpoint.json`, `startup-takeover.json`, `startup-seen.json`, `base.json`, `library.json`). Nothing leaves the machine.
 
 ## What exists
 
@@ -245,6 +245,17 @@ login (`LauncherViewModel` with `atLogin: true`) acts on it: the last-used profi
 itself, else the first "Always start it" one. It counts down `CountdownSeconds` (10) in a banner with Cancel;
 any click or key cancels. The window drives `Tick()` from a one-second `DispatcherTimer`, so tests step the
 countdown directly. A launcher reopened from the tray or Start Menu never counts down.
+## Startup discovery (done)
+
+Apps keep adding themselves to Windows startup after install. At launch (UI mode, after the login launcher
+opens) `StartupDiscovery.FindNew` runs off the UI thread and reports enabled, per-user-switchable, launchable
+entries that were not there last time (`startup-seen.json`; the very first look only records, so existing
+installs are not flooded). They are shown together in **New startup apps** (`App/Discovery`) once the launcher
+closes. Each row picks "Start with <profile>", "Start with Base", "Keep in Created for later", or "Leave it to
+Windows". The default is Everything when startup apps were taken over before (`StartupTakeover.HasTakenOver`),
+else leave it. Apply places each one; a profile or Base choice adds a linked step and switches the entry off in
+Windows, recorded in `startup-takeover.json` so uninstall restores it. "Ask me later" decides nothing, so they
+come back next launch. Settings has a checkbox to turn the check off (`discoverStartupApps` in `config.json`).
 ## Next
 
 1. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.

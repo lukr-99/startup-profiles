@@ -264,6 +264,15 @@ app into the Everything profile, record it (`IStartupTakeoverStore`, `startup-ta
 off - and the uninstall `Restore`. The installer drives it through `--take-over-startup` /
 `--restore-startup`; `--list-startup` prints the catalog.
 
+Startup discovery: `Core/Startup/StartupDiscovery` keeps the takeover current after install. It remembers
+every startup entry it has looked at (`IStartupSeenStore`, `startup-seen.json`; the first look only records),
+and `FindNew` returns enabled, switchable, launchable entries added since. `Place` takes the user's
+`StartupPlacement`: a profile or the base (kept in the library, added as a linked step once, then switched off
+and recorded through `StartupTakeover.SwitchOff`, so uninstall restores it), library only, or leave it to
+Windows. Every placed entry is marked seen. The App runs `FindNew` off the UI thread after the login launcher
+opens (unless `discoverStartupApps` is `false` in `config.json`) and offers the result in
+`App/Discovery/NewStartupAppsWindow` once the launcher closes.
+
 Base: `Models/StartupBase` is an action list that is deliberately not a `Profile` (no tile, name, or
 icon), persisted by `IBaseStore` / `BaseStore` as `base.json`. `Profile.IncludeBase` (default true, so
 older profiles include it) opts a profile in. `ProfileExecutor` - already the single run-then-record

@@ -34,6 +34,11 @@ The install step that moves the apps Windows starts at login into the Everything
 switches them off in Windows, so only the launcher starts with Windows. Restore switches them back on.
 _Avoid_: Import, migration, startup sync
 
+**Startup discovery**:
+The check at launch for apps that set themselves to start with Windows since last time. Each one is
+offered once, and the user picks the profile (or Base) it should start with instead.
+_Avoid_: Startup scan, auto-import
+
 **Defaults panel**:
 The side panel tab that lists what Windows itself starts at login, on or off, so the user can drag
 those apps into a profile or the library.

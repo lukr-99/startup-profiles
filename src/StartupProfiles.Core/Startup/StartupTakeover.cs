@@ -53,6 +53,19 @@ public sealed class StartupTakeover
         return new StartupTakeoverResult(adopted, leftEnabled, failed);
     }
 
+    /// <summary>True when Startup Profiles has switched startup apps off before (at install or since).</summary>
+    public bool HasTakenOver => _record.Load().Count > 0;
+
+    /// <summary>
+    /// Records <paramref name="entry"/> (so uninstall switches it back on), then switches it off in Windows. Used for
+    /// one app found after install. False when Windows refused; the entry then stays recorded and on.
+    /// </summary>
+    public bool SwitchOff(StartupEntry entry)
+    {
+        _record.Save(Merge(_record.Load(), [entry]));
+        return TrySetEnabled(entry, enabled: false);
+    }
+
     /// <summary>Switches every recorded entry back on. Entries that fail stay recorded for a later retry.</summary>
     public IReadOnlyList<StartupEntry> Restore()
     {
