@@ -104,8 +104,34 @@ A profile is therefore a small declarative workflow, e.g. *Work*:
 ## Storage
 
 Profiles and app config live as plain JSON under `%APPDATA%\StartupProfiles` - no database
-engine, nothing leaves the machine. Supports export/import for moving profiles between
-computers. (TOML is a possible alternative; JSON is the default to match Treeline.)
+engine, nothing leaves the machine. A full backup moves a setup between computers (see Data safety).
+(TOML is a possible alternative; JSON is the default to match Treeline.)
+
+### Data safety
+
+The data contract, per CodePrint's data lifecycle rules:
+
+- **Owner and store.** The local user owns everything. The running app is the single writer of its JSON
+  files in `%APPDATA%\StartupProfiles`; one-shot `register` processes write through its loopback API.
+  Files are written atomically (temp file, then move).
+- **Identity.** Profiles have stable slug ids (`work`); library items have stable ids that profile steps
+  link to (`LibraryItemId`). Run history timestamps are `DateTimeOffset` with the local offset.
+- **Schema.** The stores have no version field yet. Changes so far are additive, with defaults for missing
+  fields (for example `IncludeBase` defaults to true), so older files load as they are. A breaking change
+  must add a version field and an explicit migration step before it ships.
+- **Backup.** Settings > Back up writes a `BackupDocument` (`Core/Backup`): `Format`
+  (`startup-profiles-backup`), `Version` (1), `ExportedAt`, `AppVersion`, then all profiles, the base,
+  the library, and the settings. Run history, the startup takeover record, and `startup-seen.json` are
+  machine state and stay out. The user picks the path, so a backup can live outside AppData and
+  survive an uninstall.
+- **Restore.** Settings > Restore parses and checks the file first (format, version not newer than the app,
+  unique non-empty ids, known step kinds) and changes nothing if it fails. It then shows a plan (profiles
+  added, replaced, removed; base, library, and settings counts) and restores only after the user agrees. A
+  full backup replaces everything; an old profiles-only export (a JSON array) adds and replaces profiles
+  only. If a write fails part way, the earlier state is written back.
+- **Deletion.** Deleting a profile asks first and cannot be undone except from a backup.
+  `install/uninstall.ps1 -PurgeData` deletes the data folder; without it the data stays.
+- **Sync and privacy.** No sync and nothing leaves the machine; the loopback API binds to 127.0.0.1 only.
 
 ## Startup registration
 
@@ -191,8 +217,9 @@ Built in StartupProfiles.App (WPF UI - Milestone 4):
   number-key and Escape shortcuts, "Edit profiles" and "Close". Shown at startup; picking a profile
   runs it through `ProfileExecutor` and closes the window (the app stays in the tray).
 - **Config** - the profile editor (`ConfigWindow` + `ConfigViewModel`, `ProfileEditor`, `ActionEditor`):
-  list/create/delete profiles, edit name/icon/startup behaviour, add/remove/reorder typed actions,
-  save, run, and JSON export/import. Deleting asks for confirmation; dialogs are behind the
+  list/create/delete profiles, edit name/icon/startup behaviour, add/remove/reorder typed actions as
+  cards that save themselves (`ISaveScheduler`), run, and full backup/restore. Deleting asks for
+  confirmation; dialogs are behind the
   `IUserPrompts` seam so the view models are unit-tested without a UI.
 - **Mvvm** - local `ObservableObject` / `RelayCommand` mirroring dotnetlib's shape.
 - **Themes** - light/dark semantic-token `ResourceDictionary` files and a `ThemeManager` that follows

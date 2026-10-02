@@ -153,8 +153,8 @@ It is deliberately not a profile: `StartupBase` in `base.json` via `IBaseStore`,
 the profiles (same action grid; no name/icon/startup/delete) and its "Run now" runs the base alone. API:
 `GET`/`PUT /api/base`, `POST /api/base/run`; profile summaries carry `includeBase`.
 
-Not yet: profile JSON export/import does not include the base, and switching profiles from the tray
-reruns the base actions (by design - the owner chose "with every profile run").
+Switching profiles from the tray reruns the base actions (by design - the owner chose "with every profile
+run"). Backups include the base (see ARCHITECTURE.md, Data safety).
 
 ## Relaunch and action icons (done)
 
@@ -207,7 +207,7 @@ Drag and drop (view plumbing in `ConfigWindow.xaml.cs`, behaviour in `ConfigView
   such an item to that profile is refused.
 
 Not yet: the install-time startup takeover still adds standalone copies to Everything (drag those rows
-into Created to link them), and profile export/import does not include the library. The drag gestures
+into Created to link them). Backups include the library. The drag gestures
 are verified by view-model tests and offscreen rendering, not UI automation.
 
 ## Profile editor: cards and auto-save (done)

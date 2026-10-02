@@ -579,12 +579,12 @@
         <TextBlock Text="When an app sets itself to start with Windows, you choose which profile it belongs to."
                    Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="26,4,0,0" />
 
-        <TextBlock Text="Profiles data" FontSize="15" FontWeight="SemiBold" Margin="0,26,0,8" />
-        <TextBlock Text="Export all profiles to a JSON file, or import them from one."
+        <TextBlock Text="Backup" FontSize="15" FontWeight="SemiBold" Margin="0,26,0,8" />
+        <TextBlock Text="Save your profiles, Base, Created items, and settings to a file you choose, for example on another drive. Restoring shows what changes before anything is replaced."
                    Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,0,0,10" />
         <StackPanel Orientation="Horizontal">
-          <Button Content="Export..." Command="{Binding ExportCommand}" Padding="12,6" Margin="0,0,8,0" />
-          <Button Content="Import..." Command="{Binding ImportCommand}" Padding="12,6" />
+          <Button Content="Back up..." Command="{Binding ExportCommand}" Padding="12,6" Margin="0,0,8,0" />
+          <Button Content="Restore..." Command="{Binding ImportCommand}" Padding="12,6" />
         </StackPanel>
         <TextBlock Text="{Binding Status}" Foreground="{DynamicResource App.Muted}" Margin="0,12,0,0" />
 

@@ -32,7 +32,15 @@ public sealed class LibraryPanel : ObservableObject
         _saveCommand = new RelayCommand(_ => Save(), _ => Draft is not null);
         _deleteCommand = new RelayCommand(_ => Delete(), _ => Draft is { IsNew: false });
 
-        foreach (var item in library.GetAll().OrderBy(i => i.Name, StringComparer.CurrentCultureIgnoreCase))
+        Reload();
+    }
+
+    /// <summary>Reads the library again (after a restore), dropping any open form.</summary>
+    public void Reload()
+    {
+        Selected = null;
+        Items.Clear();
+        foreach (var item in _library.GetAll().OrderBy(i => i.Name, StringComparer.CurrentCultureIgnoreCase))
             Items.Add(LibraryItemRow.From(item));
     }
 

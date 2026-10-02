@@ -1,10 +1,9 @@
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Windows.Input;
 using StartupProfiles.App.Interaction;
 using StartupProfiles.App.Mvvm;
+using StartupProfiles.Core.Backup;
 using StartupProfiles.Core.Execution;
 using StartupProfiles.Core.Library;
 using StartupProfiles.Core.Models;
@@ -22,12 +21,6 @@ namespace StartupProfiles.App.Config;
 /// </summary>
 public sealed class ConfigViewModel : ObservableObject
 {
-    private static readonly JsonSerializerOptions PortableJson = new()
-    {
-        WriteIndented = true,
-        PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter() },
-    };
 
     private readonly IProfileStore _profiles;
     private readonly IBaseStore _base;
@@ -36,6 +29,7 @@ public sealed class ConfigViewModel : ObservableObject
     private readonly IUserPrompts _prompts;
     private readonly ISaveScheduler _saves;
     private readonly IConfigStore? _config;
+    private readonly BackupService? _backup;
 
     private readonly RelayCommand _saveCommand;
     private readonly RelayCommand _undoRemoveCommand;
@@ -57,6 +51,7 @@ public sealed class ConfigViewModel : ObservableObject
 
     /// <param name="saveScheduler">When edits are written; saves at once when omitted (tests).</param>
     /// <param name="config">App settings shown on the Settings tab; those settings are hidden when omitted.</param>
+    /// <param name="backup">Backup and restore for the Settings tab; both are unavailable when omitted.</param>
     public ConfigViewModel(
         IProfileStore profiles,
         IBaseStore baseStore,
@@ -65,7 +60,8 @@ public sealed class ConfigViewModel : ObservableObject
         ProfileExecutor executor,
         IUserPrompts prompts,
         ISaveScheduler? saveScheduler = null,
-        IConfigStore? config = null)
+        IConfigStore? config = null,
+        BackupService? backup = null)
     {
         _profiles = profiles;
         _base = baseStore;
@@ -74,6 +70,7 @@ public sealed class ConfigViewModel : ObservableObject
         _prompts = prompts;
         _saves = saveScheduler ?? new ImmediateSaveScheduler();
         _config = config;
+        _backup = backup;
 
         Library = new LibraryPanel(library, prompts);
         Library.ItemSaved += RelinkRows;
@@ -81,8 +78,8 @@ public sealed class ConfigViewModel : ObservableObject
 
         NewCommand = new RelayCommand(_ => NewProfile());
         RefreshStartupAppsCommand = new RelayCommand(_ => LoadStartupApps());
-        ExportCommand = new RelayCommand(_ => Export());
-        ImportCommand = new RelayCommand(_ => Import());
+        ExportCommand = new RelayCommand(_ => Export(), _ => _backup is not null);
+        ImportCommand = new RelayCommand(_ => Import(), _ => _backup is not null);
         _saveCommand = new RelayCommand(_ => Save(), _ => Editor is not null);
         _deleteCommand = new RelayCommand(_ => Delete(), _ => Editor is { IsBase: false });
         _runCommand = new RelayCommand(_ => _ = RunAsync(), _ => Editor is not null);
@@ -633,31 +630,49 @@ public sealed class ConfigViewModel : ObservableObject
         SaveEdits("Moved.");
     }
 
+    /// <summary>Writes a full backup (profiles, base, library, settings) to a file the user picks.</summary>
     private void Export()
     {
-        var path = _prompts.PickSavePath("startup-profiles.json");
+        if (_backup is null) return;
+        var path = _prompts.PickSavePath($"startup-profiles-backup-{DateTime.Now:yyyy-MM-dd}.json");
         if (path is null) return;
-        File.WriteAllText(path, JsonSerializer.Serialize(_profiles.GetAll(), PortableJson));
-        Status = "Exported.";
+
+        _saves.Flush();
+        File.WriteAllText(path, _backup.Export());
+        Status = $"Backed up to {Path.GetFileName(path)}.";
     }
 
+    /// <summary>Checks a backup, shows what restoring it changes, and restores it once the user agrees.</summary>
     private void Import()
     {
+        if (_backup is null) return;
         var path = _prompts.PickOpenPath();
         if (path is null) return;
         _saves.Flush();
 
-        var imported = JsonSerializer.Deserialize<List<Profile>>(File.ReadAllText(path), PortableJson);
-        if (imported is null) return;
+        try
+        {
+            var plan = _backup.Plan(File.ReadAllText(path));
+            if (!_prompts.Confirm($"{plan.Summary}{Environment.NewLine}{Environment.NewLine}Restore it?")) return;
 
-        foreach (var profile in imported) _profiles.Save(profile);
-        LoadList();
-        Editor = null;
-        _selected = null;
-        OnPropertyChanged(nameof(Selected));
-        Status = $"Imported {imported.Count} profile(s).";
+            _backup.Restore(plan);
+            LoadList();
+            Library.Reload();
+            Editor = null;
+            _selected = null;
+            OnPropertyChanged(nameof(Selected));
+            OnPropertyChanged(nameof(DiscoverStartupApps));
+            Status = $"Restored {plan.Document.Profiles.Count} profile(s).";
+        }
+        catch (BackupException ex)
+        {
+            _prompts.Info(ex.Message);
+        }
+        catch (IOException ex)
+        {
+            _prompts.Info($"The file could not be read: {ex.Message}");
+        }
     }
-
     private static string Slug(string name)
     {
         var chars = name.Trim().ToLowerInvariant()

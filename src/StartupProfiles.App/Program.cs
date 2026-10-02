@@ -84,6 +84,8 @@ internal static class Program
         var executor = host.Services.GetRequiredService<ProfileExecutor>();
         var config = host.Services.GetRequiredService<IConfigStore>();
         var history = host.Services.GetRequiredService<IHistoryStore>();
+        var backup = new Core.Backup.BackupService(profiles, baseStore, host.Services.GetRequiredService<ILibraryStore>(), config,
+            typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "");
         var prompts = new UserPrompts();
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -103,7 +105,7 @@ internal static class Program
 
         void OpenConfig() =>
             new ConfigWindow(new ConfigViewModel(profiles, baseStore, library, new WindowsStartupAppCatalog(), executor, prompts,
-                    new DebouncedSaveScheduler(), config),
+                    new DebouncedSaveScheduler(), config, backup),
                 ThemeManager.Parse(config.GetValue("theme")), ApplyTheme).Show();
 
         // At most one launcher: reopening it (tray, or launching the app again) brings the open one forward.
