@@ -25,4 +25,10 @@ public interface IUserPrompts
 
     /// <summary>Chooses an existing file to open; null if cancelled.</summary>
     string? PickOpenPath();
+
+    /// <summary>
+    /// Lets the user browse for what an action starts: a program for an app, a folder for a folder, else any file.
+    /// Starts next to <paramref name="current"/> when it is a path. Null if cancelled.
+    /// </summary>
+    string? PickTarget(Core.Models.ActionType type, string? current);
 }

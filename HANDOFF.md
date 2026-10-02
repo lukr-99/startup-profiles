@@ -201,8 +201,7 @@ Drag and drop (view plumbing in `ConfigWindow.xaml.cs`, behaviour in `ConfigView
   linked) instead of added twice.
 - Anything dropped onto a sidebar profile (or Base) is added to it without opening it
   (`ConfigViewModel.DropOnProfile`): panel items, Explorer files, or a copied table row.
-- Drops, double-click adds, drag reorder, and Move up/down save immediately; typed cell edits and
-  "Remove row" still wait for Save. Library changes persist immediately.
+- Every change saves by itself (see the profile editor section below). Library changes persist immediately.
 - While a profile that includes the base is edited, the panel hides anything the base already starts
   (`IsOfferedInPanel`, applied as a `CollectionView` filter refreshed on `PanelFilterChanged`), and adding
   such an item to that profile is refused.
@@ -211,6 +210,29 @@ Not yet: the install-time startup takeover still adds standalone copies to Every
 into Created to link them), and profile export/import does not include the library. The drag gestures
 are verified by view-model tests and offscreen rendering, not UI automation.
 
+## Profile editor: cards and auto-save (done)
+
+The actions table is now a list of cards (`ConfigWindow.xaml`, `App.ActionCard` style). Each card shows the
+step's icon (shell icon, or a Fluent glyph per type from `ActionLabels.Glyph` when the shell has none), a
+plain name (`ActionEditor.DisplayName`), a second line like "App · C:\...\Code.exe" (Store apps say "Microsoft
+Store app"), and chips for non-default options ("waits 5 s", "as admin", "retries 3x"). Clicking a card opens
+its details inline with plain labels ("Kind", "Wait first", "If it fails"); enum values show through
+`ActionLabels` / `Choice<T>` and are stored unchanged. App, file, and folder targets have a Browse button
+(`IUserPrompts.PickTarget`). The card header is the drag handle.
+
+Auto-save: `ProfileEditor.Changed` fires on any edit (name, icon, toggles, any row value, rows added, removed, or
+moved). `ConfigViewModel` hands the write to an `ISaveScheduler`: the window uses `DebouncedSaveScheduler`
+(500 ms after the last edit), tests use the immediate default. A waiting save is flushed when another profile
+opens, on import, and when the window closes, and dropped when the profile is deleted. A blank name is not
+saved; the footer says why. The footer shows "All changes saved" and the last action. There is no Save button.
+
+Removing: a trash icon appears on the hovered or selected card (red on hover); the Delete key does the same.
+Removal saves at once and the footer offers **Undo**, which puts the card back in place (for the profile it came
+from only).
+
+Icons: the picker groups icons (Work, Code, Study, Play, Life, Symbols; `Ui/IconCatalog`), rings the current
+one, and draws them in the text color (the old picker drew black glyphs on the dark theme). The sidebar shows each
+profile's icon and "N steps"; the editor header shows a large icon button with an edit badge.
 ## Next
 
 1. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.

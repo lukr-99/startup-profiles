@@ -34,8 +34,11 @@ public sealed class ConfigViewModel : ObservableObject
     private readonly IStartupAppCatalog _startupCatalog;
     private readonly ProfileExecutor _executor;
     private readonly IUserPrompts _prompts;
+    private readonly ISaveScheduler _saves;
 
     private readonly RelayCommand _saveCommand;
+    private readonly RelayCommand _undoRemoveCommand;
+    private readonly RelayCommand _browseTargetCommand;
     private readonly RelayCommand _deleteCommand;
     private readonly RelayCommand _runCommand;
     private readonly RelayCommand _pickIconCommand;
@@ -48,20 +51,25 @@ public sealed class ConfigViewModel : ObservableObject
     private ProfileEditor? _editor;
     private ActionEditor? _selectedAction;
     private string? _status;
+    private string? _saveState;
+    private RemovedRow? _lastRemoved;
 
+    /// <param name="saveScheduler">When edits are written; saves at once when omitted (tests).</param>
     public ConfigViewModel(
         IProfileStore profiles,
         IBaseStore baseStore,
         LibraryService library,
         IStartupAppCatalog startupCatalog,
         ProfileExecutor executor,
-        IUserPrompts prompts)
+        IUserPrompts prompts,
+        ISaveScheduler? saveScheduler = null)
     {
         _profiles = profiles;
         _base = baseStore;
         _startupCatalog = startupCatalog;
         _executor = executor;
         _prompts = prompts;
+        _saves = saveScheduler ?? new ImmediateSaveScheduler();
 
         Library = new LibraryPanel(library, prompts);
         Library.ItemSaved += RelinkRows;
@@ -76,7 +84,9 @@ public sealed class ConfigViewModel : ObservableObject
         _runCommand = new RelayCommand(_ => _ = RunAsync(), _ => Editor is not null);
         _pickIconCommand = new RelayCommand(_ => PickIcon(), _ => Editor is { IsBase: false });
         _addActionCommand = new RelayCommand(_ => AddAction(), _ => Editor is not null);
-        _removeActionCommand = new RelayCommand(_ => RemoveAction(), _ => SelectedAction is not null);
+        _removeActionCommand = new RelayCommand(p => RemoveAction(p as ActionEditor), p => p is ActionEditor || SelectedAction is not null);
+        _undoRemoveCommand = new RelayCommand(_ => UndoRemove(), _ => CanUndoRemove);
+        _browseTargetCommand = new RelayCommand(p => BrowseTarget(p as ActionEditor ?? SelectedAction));
         _moveUpCommand = new RelayCommand(_ => Move(-1), _ => SelectedAction is not null);
         _moveDownCommand = new RelayCommand(_ => Move(1), _ => SelectedAction is not null);
 
@@ -104,8 +114,14 @@ public sealed class ConfigViewModel : ObservableObject
         get => _editor;
         private set
         {
-            if (!SetProperty(ref _editor, value)) return;
+            if (ReferenceEquals(_editor, value)) return;
+            if (_editor is not null) _editor.Changed -= OnEditorEdited;
+            SetProperty(ref _editor, value);
+            if (value is not null) value.Changed += OnEditorEdited;
+            SaveState = null;
             OnPropertyChanged(nameof(HasEditor));
+            OnPropertyChanged(nameof(CanUndoRemove));
+            _undoRemoveCommand.NotifyCanExecuteChanged();
             _saveCommand.NotifyCanExecuteChanged();
             _deleteCommand.NotifyCanExecuteChanged();
             _runCommand.NotifyCanExecuteChanged();
@@ -130,6 +146,12 @@ public sealed class ConfigViewModel : ObservableObject
 
     public string? Status { get => _status; private set => SetProperty(ref _status, value); }
 
+    /// <summary>Whether the open profile's edits are on disk ("All changes saved"), or why they are not.</summary>
+    public string? SaveState { get => _saveState; private set => SetProperty(ref _saveState, value); }
+
+    /// <summary>True right after a row was removed from the open profile, until another row is removed or it is reopened.</summary>
+    public bool CanUndoRemove => _lastRemoved is { } removed && ReferenceEquals(removed.Editor, Editor);
+
     public ICommand NewCommand { get; }
     public ICommand SaveCommand => _saveCommand;
     public ICommand DeleteCommand => _deleteCommand;
@@ -137,6 +159,8 @@ public sealed class ConfigViewModel : ObservableObject
     public ICommand PickIconCommand => _pickIconCommand;
     public ICommand AddActionCommand => _addActionCommand;
     public ICommand RemoveActionCommand => _removeActionCommand;
+    public ICommand UndoRemoveCommand => _undoRemoveCommand;
+    public ICommand BrowseTargetCommand => _browseTargetCommand;
     public ICommand MoveUpCommand => _moveUpCommand;
     public ICommand MoveDownCommand => _moveDownCommand;
     public ICommand ExportCommand { get; }
@@ -426,11 +450,22 @@ public sealed class ConfigViewModel : ObservableObject
         Profiles.Clear();
         Profiles.Add(new ProfileListItem(ProfileExecutor.BaseRunId, "Base", _base.Load().Actions.Count, isBase: true));
         foreach (var profile in _profiles.GetAll())
-            Profiles.Add(new ProfileListItem(profile.Id, profile.Name, profile.Actions.Count));
+            Profiles.Add(new ProfileListItem(profile.Id, profile.Name, profile.Actions.Count, icon: profile.Icon));
+    }
+
+    /// <summary>Writes any edit still waiting to be saved (the window calls this when it closes).</summary>
+    public void FlushPendingSave() => _saves.Flush();
+
+    private void OnEditorEdited()
+    {
+        if (Editor is not { } editor) return;
+        SaveState = "Saving...";
+        _saves.Schedule(() => Persist(editor));
     }
 
     private void LoadEditor()
     {
+        _saves.Flush();
         if (Editor is not null) Editor.PropertyChanged -= OnEditorChanged;
         Editor = Selected switch
         {
@@ -465,23 +500,40 @@ public sealed class ConfigViewModel : ObservableObject
     private void Save()
     {
         if (Editor is null) return;
-        if (Editor.IsBase) _base.Save(Editor.ToBase());
-        else _profiles.Save(Editor.ToProfile());
+        _saves.Cancel();
+        if (Persist(Editor)) Status = "Saved.";
+    }
 
-        if (FindListItem(Editor) is { } item)
+    /// <summary>Writes <paramref name="editor"/> to its store and refreshes its sidebar row. False when it cannot be saved yet.</summary>
+    private bool Persist(ProfileEditor editor)
+    {
+        if (editor.IsProfile && string.IsNullOrWhiteSpace(editor.Name))
         {
-            item.Name = Editor.Name;
-            item.ActionCount = Editor.Actions.Count;
+            if (ReferenceEquals(editor, Editor)) SaveState = "Give the profile a name to save it.";
+            return false;
         }
-        Status = "Saved.";
-        if (Editor.IsBase) RefreshPanelFilter();
+
+        if (editor.IsBase) _base.Save(editor.ToBase());
+        else _profiles.Save(editor.ToProfile());
+
+        if (FindListItem(editor) is { } item)
+        {
+            item.Name = editor.Name.Trim();
+            item.Icon = string.IsNullOrEmpty(editor.Icon) ? null : editor.Icon;
+            item.ActionCount = editor.Actions.Count;
+        }
+
+        if (ReferenceEquals(editor, Editor)) SaveState = "All changes saved";
+        if (editor.IsBase) RefreshPanelFilter();
+        return true;
     }
 
     private void Delete()
     {
         if (Editor is not { IsBase: false }) return;
-        if (!_prompts.Confirm($"Delete profile '{Editor.Name}'?")) return;
+        if (!_prompts.Confirm($"Delete profile '{Editor.Name}'? This cannot be undone.")) return;
 
+        _saves.Cancel();
         _profiles.Remove(Editor.Id);
         if (FindListItem(Editor) is { } item) Profiles.Remove(item);
         Selected = null;
@@ -519,11 +571,40 @@ public sealed class ConfigViewModel : ObservableObject
         SelectedAction = action;
     }
 
-    private void RemoveAction()
+    /// <summary>Removes <paramref name="row"/> (or the selected row) and saves; <see cref="UndoRemoveCommand"/> puts it back.</summary>
+    private void RemoveAction(ActionEditor? row)
     {
-        if (Editor is null || SelectedAction is null) return;
-        Editor.Actions.Remove(SelectedAction);
-        SelectedAction = null;
+        row ??= SelectedAction;
+        if (Editor is null || row is null) return;
+        var index = Editor.Actions.IndexOf(row);
+        if (index < 0) return;
+
+        Editor.Actions.RemoveAt(index);
+        if (ReferenceEquals(SelectedAction, row)) SelectedAction = null;
+        SetLastRemoved(new RemovedRow(Editor, row, index));
+        Status = $"Removed '{row.DisplayName}'.";
+    }
+
+    private void UndoRemove()
+    {
+        if (!CanUndoRemove || _lastRemoved is not { } removed) return;
+        removed.Editor.Actions.Insert(Math.Min(removed.Index, removed.Editor.Actions.Count), removed.Row);
+        SelectedAction = removed.Row;
+        SetLastRemoved(null);
+        Status = $"Put '{removed.Row.DisplayName}' back.";
+    }
+
+    private void SetLastRemoved(RemovedRow? removed)
+    {
+        _lastRemoved = removed;
+        OnPropertyChanged(nameof(CanUndoRemove));
+        _undoRemoveCommand.NotifyCanExecuteChanged();
+    }
+
+    private void BrowseTarget(ActionEditor? row)
+    {
+        if (row is not { CanBrowse: true }) return;
+        if (_prompts.PickTarget(row.Type, row.Target) is { } path) row.Target = path;
     }
 
     private void Move(int delta)
@@ -548,6 +629,7 @@ public sealed class ConfigViewModel : ObservableObject
     {
         var path = _prompts.PickOpenPath();
         if (path is null) return;
+        _saves.Flush();
 
         var imported = JsonSerializer.Deserialize<List<Profile>>(File.ReadAllText(path), PortableJson);
         if (imported is null) return;
@@ -569,4 +651,7 @@ public sealed class ConfigViewModel : ObservableObject
         while (slug.Contains("--", StringComparison.Ordinal)) slug = slug.Replace("--", "-", StringComparison.Ordinal);
         return slug.Length == 0 ? "profile" : slug;
     }
+
+    /// <summary>The last row removed, kept so it can be put back where it was.</summary>
+    private sealed record RemovedRow(ProfileEditor Editor, ActionEditor Row, int Index);
 }

@@ -11,8 +11,9 @@
         TextElement.Foreground="{DynamicResource App.Text}">
   <Window.Resources>
     <ui:NullToVisibilityConverter x:Key="NullToVis" />
-    <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    <ui:BoolToVisibilityConverter x:Key="BoolToVis" />
     <ui:ActionIconConverter x:Key="ActionIcon" />
+    <ui:ActionGlyphConverter x:Key="ActionGlyph" />
   </Window.Resources>
 
   <TabControl>
@@ -62,16 +63,35 @@
                       </Style.Triggers>
                     </Style>
                   </Border.Style>
-                  <StackPanel>
-                    <DockPanel>
-                      <TextBlock Text="{Binding ActionCount}" DockPanel.Dock="Right"
-                                 Foreground="{DynamicResource App.Muted}" />
-                      <TextBlock Text="{Binding Name}" />
-                    </DockPanel>
-                    <TextBlock Text="Starts with every profile" FontSize="11" Margin="0,2,0,0"
-                               Foreground="{DynamicResource App.Muted}"
-                               Visibility="{Binding IsBase, Converter={StaticResource BoolToVis}}" />
-                  </StackPanel>
+                  <DockPanel>
+                    <!-- The profile's icon (or initial); the base gets a layers glyph. -->
+                    <Border DockPanel.Dock="Left" Width="30" Height="30" CornerRadius="15" Margin="0,0,10,0"
+                            Background="{DynamicResource App.SurfaceAlt}" VerticalAlignment="Center">
+                      <Grid>
+                        <TextBlock Text="{Binding Glyph}" FontFamily="Segoe UI Emoji, Segoe UI" FontSize="15"
+                                   FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="{Binding IsBase, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
+                        <TextBlock Text="&#xE81E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="{Binding IsBase, Converter={StaticResource BoolToVis}}" />
+                      </Grid>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock FontSize="11" Margin="0,1,0,0" Foreground="{DynamicResource App.Muted}">
+                        <TextBlock.Style>
+                          <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="{Binding CountText}" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding IsBase}" Value="True">
+                                <Setter Property="Text" Value="{Binding CountText, StringFormat='Runs first, every time · {0}'}" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </TextBlock.Style>
+                      </TextBlock>
+                    </StackPanel>
+                  </DockPanel>
                 </Border>
               </DataTemplate>
             </ListBox.ItemTemplate>
@@ -84,70 +104,140 @@
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    Visibility="{Binding Editor, Converter={StaticResource NullToVis}, ConverterParameter=invert}" />
 
-        <!-- Editor -->
-        <Grid Grid.Column="1" Margin="20"
+        <!-- Editor. Every change saves by itself (see ConfigViewModel.SaveState). -->
+        <Grid Grid.Column="1" Margin="24,18,20,14"
               Visibility="{Binding Editor, Converter={StaticResource NullToVis}}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
 
-          <StackPanel Grid.Row="0" Margin="0,0,0,8"
-                      Visibility="{Binding Editor.IsBase, Converter={StaticResource BoolToVis}}">
-            <TextBlock Text="Base" FontSize="18" FontWeight="SemiBold" />
-            <TextBlock Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,4,0,0"
-                       Text="These actions run first, every time a profile runs. Untick 'Include base' on a profile to skip them there." />
-          </StackPanel>
+          <!-- Header: icon, name, and the profile-wide choices; Run and Delete on the right. -->
+          <DockPanel Grid.Row="0" LastChildFill="True">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+              <Button Command="{Binding RunCommand}" Style="{StaticResource App.AccentButton}"
+                      ToolTip="Start everything in this list now">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="&#xE768;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12"
+                             VerticalAlignment="Center" Margin="0,0,8,0" />
+                  <TextBlock Text="Run now" />
+                </StackPanel>
+              </Button>
+              <Button Content="&#xE74D;" Command="{Binding DeleteCommand}" Style="{StaticResource App.DangerIconButton}"
+                      Width="34" Height="34" Margin="8,0,0,0" ToolTip="Delete this profile"
+                      Visibility="{Binding Editor.IsProfile, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
 
-          <WrapPanel Grid.Row="0" Visibility="{Binding Editor.IsProfile, Converter={StaticResource BoolToVis}}">
-            <StackPanel Margin="0,0,16,8">
-              <TextBlock Text="Name" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
-              <TextBox Text="{Binding Editor.Name, UpdateSourceTrigger=PropertyChanged}"
-                       Width="220" Height="32" VerticalContentAlignment="Center" />
+            <!-- Base -->
+            <StackPanel Visibility="{Binding Editor.IsBase, Converter={StaticResource BoolToVis}}" Margin="0,0,16,0">
+              <TextBlock Text="Base" FontSize="22" FontWeight="SemiBold" />
+              <TextBlock Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,4,0,0"
+                         Text="These start first, every time any profile runs. A profile can skip them with 'Also start Base'." />
             </StackPanel>
-            <StackPanel Margin="0,0,16,8">
-              <TextBlock Text="Icon" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
-              <Button Command="{Binding PickIconCommand}" Content="{Binding Editor.IconDisplay}"
-                      FontFamily="Segoe UI Emoji" FontSize="16" Width="120" Height="32" />
-            </StackPanel>
-            <StackPanel Margin="0,0,16,8">
-              <TextBlock Text="Startup" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
-              <ComboBox ItemsSource="{x:Static config:ProfileEditor.StartupBehaviours}"
-                        SelectedItem="{Binding Editor.StartupBehaviour}" Width="220" Height="32" />
-            </StackPanel>
-            <StackPanel Margin="0,0,0,8" VerticalAlignment="Bottom">
-              <CheckBox Content="Include base" IsChecked="{Binding Editor.IncludeBase}" Height="32"
-                        ToolTip="Run the base actions before this profile's own." />
-            </StackPanel>
-          </WrapPanel>
 
-          <TextBlock Grid.Row="1" Text="Actions" FontWeight="SemiBold" Margin="0,10,0,6" />
-
-          <!-- Rows reorder by dragging their grip. Apps, library items, and files from Explorer drop in here. -->
-          <DataGrid x:Name="ActionsGrid" Grid.Row="2" ItemsSource="{Binding Editor.Actions}" SelectedItem="{Binding SelectedAction}"
-                    AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column"
-                    CanUserSortColumns="False" CanUserReorderColumns="False"
-                    AllowDrop="True" DragEnter="OnActionsDragOver" DragOver="OnActionsDragOver"
-                    DragLeave="OnActionsDragLeave" Drop="OnActionsDrop"
-                    PreviewMouseLeftButtonDown="OnActionsMouseDown" PreviewMouseMove="OnDragSourceMouseMove"
-                    BeginningEdit="OnActionsBeginningEdit">
-            <DataGrid.Columns>
-              <!-- Drag grip, then the app's shell icon (as on Windows' Startup apps page) with a badge when the
-                   row links to a library item. -->
-              <DataGridTemplateColumn Width="62" CanUserResize="False" IsReadOnly="True">
-                <DataGridTemplateColumn.CellTemplate>
-                  <DataTemplate>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                      <Border Tag="DragHandle" Background="Transparent" Cursor="SizeAll" Padding="6,8,4,8"
-                              ToolTip="Drag to reorder, or into Created to save it to the library">
-                        <TextBlock Text="&#xE76F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12"
-                                   Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
+            <!-- Profile -->
+            <DockPanel Visibility="{Binding Editor.IsProfile, Converter={StaticResource BoolToVis}}" Margin="0,0,16,0">
+              <Button DockPanel.Dock="Left" Command="{Binding PickIconCommand}" Width="56" Height="56" Padding="0"
+                      Margin="0,0,14,0" VerticalAlignment="Top" ToolTip="Change the icon"
+                      Background="{DynamicResource App.SurfaceAlt}">
+                <Button.Template>
+                  <ControlTemplate TargetType="Button">
+                    <Grid>
+                      <Border x:Name="bd" CornerRadius="28" Background="{TemplateBinding Background}"
+                              BorderBrush="{DynamicResource App.Border}" BorderThickness="1">
+                        <TextBlock Text="{Binding Editor.Glyph}" FontFamily="Segoe UI Emoji, Segoe UI" FontSize="26"
+                                   FontWeight="SemiBold" Foreground="{DynamicResource App.Text}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
                       </Border>
-                      <Grid Width="22" Height="22" Margin="2,0,0,0">
-                        <Image Width="20" Height="20" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality">
+                      <!-- Pencil badge so it reads as editable. -->
+                      <Border Width="20" Height="20" CornerRadius="10" Background="{DynamicResource App.Accent}"
+                              HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                        <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
+                                   Foreground="{DynamicResource App.OnAccent}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource App.Accent}" />
+                      </Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </Button.Template>
+              </Button>
+              <StackPanel>
+                <TextBox Text="{Binding Editor.Name, UpdateSourceTrigger=PropertyChanged}" FontSize="20"
+                         FontWeight="SemiBold" MaxWidth="420" HorizontalAlignment="Left" MinWidth="220"
+                         ToolTip="Profile name" />
+                <WrapPanel Margin="0,10,0,0">
+                  <CheckBox Content="Also start Base" IsChecked="{Binding Editor.IncludeBase}" Margin="0,0,20,6"
+                            VerticalAlignment="Center" ToolTip="Start the Base list before this profile's own." />
+                  <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                    <TextBlock Text="At login" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox ItemsSource="{x:Static config:ProfileEditor.StartupBehaviours}"
+                              SelectedValuePath="Value" DisplayMemberPath="Label"
+                              SelectedValue="{Binding Editor.StartupBehaviour}" Width="220" />
+                  </StackPanel>
+                </WrapPanel>
+              </StackPanel>
+            </DockPanel>
+          </DockPanel>
+
+          <!-- List header -->
+          <DockPanel Grid.Row="1" Margin="0,18,0,8">
+            <Button DockPanel.Dock="Right" Command="{Binding AddActionCommand}" Padding="10,5"
+                    ToolTip="Add a step you fill in yourself">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
+                           VerticalAlignment="Center" Margin="0,0,7,0" />
+                <TextBlock Text="Add step" />
+              </StackPanel>
+            </Button>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="What starts" FontSize="15" FontWeight="SemiBold" />
+              <TextBlock FontSize="11" Foreground="{DynamicResource App.Muted}" Margin="0,2,0,0" TextWrapping="Wrap"
+                         Text="Top to bottom. Drag a card to reorder it. Drop apps from the right, or files from Explorer." />
+            </StackPanel>
+          </DockPanel>
+
+          <!-- Steps as cards. Click one to see and change its details; the trash icon removes it (Undo below). -->
+          <Grid Grid.Row="2">
+            <ListBox x:Name="ActionsList" ItemsSource="{Binding Editor.Actions}" SelectedItem="{Binding SelectedAction}"
+                     ItemContainerStyle="{StaticResource App.ActionCard}" BorderThickness="1"
+                     BorderBrush="Transparent" Padding="0,0,4,0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="False"
+                     AllowDrop="True" DragEnter="OnActionsDragOver" DragOver="OnActionsDragOver"
+                     DragLeave="OnActionsDragLeave" Drop="OnActionsDrop"
+                     PreviewMouseLeftButtonDown="OnActionsMouseDown" PreviewMouseMove="OnDragSourceMouseMove"
+                     KeyDown="OnActionsKeyDown">
+              <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type config:ActionEditor}">
+                  <StackPanel>
+                    <!-- Card header: also the drag handle. -->
+                    <DockPanel Tag="DragHandle" Background="Transparent" Cursor="SizeAll" Margin="6,8,8,8">
+                      <TextBlock DockPanel.Dock="Left" Text="&#xE76F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                 FontSize="12" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center"
+                                 Margin="2,0,8,0" Opacity="0.6" />
+                      <Grid DockPanel.Dock="Left" Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Center">
+                        <Border CornerRadius="7" Background="{DynamicResource App.SurfaceAlt}" />
+                        <TextBlock Text="{Binding Glyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16"
+                                   Foreground="{DynamicResource App.Muted}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center">
+                          <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                              <Setter Property="Visibility" Value="Collapsed" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding Source, ElementName=ShellIcon}" Value="{x:Null}">
+                                  <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </TextBlock.Style>
+                        </TextBlock>
+                        <Image x:Name="ShellIcon" Width="22" Height="22" Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality">
                           <Image.Source>
                             <MultiBinding Converter="{StaticResource ActionIcon}">
                               <Binding Path="Type" />
@@ -156,74 +246,160 @@
                             </MultiBinding>
                           </Image.Source>
                         </Image>
-                        <Border Width="13" Height="13" CornerRadius="7" Background="{DynamicResource App.Accent}"
-                                HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-4,-4"
-                                Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}}"
-                                ToolTip="Linked to the library - change what it starts in Created">
-                          <TextBlock Text="&#xE71B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="8"
-                                     Foreground="{DynamicResource App.OnAccent}"
-                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
                       </Grid>
-                    </StackPanel>
-                  </DataTemplate>
-                </DataGridTemplateColumn.CellTemplate>
-              </DataGridTemplateColumn>
-              <DataGridComboBoxColumn Header="Type" Width="112"
-                                      ItemsSource="{x:Static config:ActionEditor.ActionTypes}"
-                                      SelectedItemBinding="{Binding Type}"
-                                      EditingElementStyle="{StaticResource App.GridComboEditor}" />
-              <!-- A linked row shows its library item's name; its path is edited in Created. -->
-              <DataGridTemplateColumn Header="Target" Width="*">
-                <DataGridTemplateColumn.CellTemplate>
-                  <DataTemplate>
-                    <TextBlock Text="{Binding TargetDisplay}" Style="{StaticResource App.GridTextDisplay}"
-                               ToolTip="{Binding Target}" ToolTipService.IsEnabled="{Binding IsLinked}" />
-                  </DataTemplate>
-                </DataGridTemplateColumn.CellTemplate>
-                <DataGridTemplateColumn.CellEditingTemplate>
-                  <DataTemplate>
-                    <TextBox Text="{Binding Target}" Style="{StaticResource App.GridTextEditor}" Loaded="OnGridEditorLoaded" />
-                  </DataTemplate>
-                </DataGridTemplateColumn.CellEditingTemplate>
-              </DataGridTemplateColumn>
-              <DataGridTextColumn Header="Arguments" Width="*" Binding="{Binding Arguments}"
-                                  ElementStyle="{StaticResource App.GridTextDisplay}"
-                                  EditingElementStyle="{StaticResource App.GridTextEditor}" />
-              <DataGridTextColumn Header="Delay (s)" Width="72" Binding="{Binding DelaySeconds}"
-                                  ElementStyle="{StaticResource App.GridTextDisplay}"
-                                  EditingElementStyle="{StaticResource App.GridTextEditor}" />
-              <DataGridComboBoxColumn Header="On failure" Width="104"
-                                      ItemsSource="{x:Static config:ActionEditor.FailureBehaviours}"
-                                      SelectedItemBinding="{Binding FailureBehaviour}"
-                                      EditingElementStyle="{StaticResource App.GridComboEditor}" />
-              <DataGridTextColumn Header="Retries" Width="64" Binding="{Binding RetryCount}"
-                                  ElementStyle="{StaticResource App.GridTextDisplay}"
-                                  EditingElementStyle="{StaticResource App.GridTextEditor}" />
-              <DataGridCheckBoxColumn Header="Admin" Width="60" Binding="{Binding RunAsAdmin}"
-                                      ElementStyle="{StaticResource App.GridCheckBox}"
-                                      EditingElementStyle="{StaticResource App.GridCheckBox}" />
-            </DataGrid.Columns>
-          </DataGrid>
+                      <Button DockPanel.Dock="Right" Content="&#xE74D;"
+                              Command="{Binding DataContext.RemoveActionCommand, ElementName=ActionsList}"
+                              CommandParameter="{Binding}" ToolTip="Remove this step" VerticalAlignment="Center">
+                        <!-- Shown on the hovered or selected card only, so the list stays calm. -->
+                        <Button.Style>
+                          <Style TargetType="Button" BasedOn="{StaticResource App.DangerIconButton}">
+                            <Setter Property="Visibility" Value="Hidden" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                              </DataTrigger>
+                              <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </Button.Style>
+                      </Button>
+                      <StackPanel VerticalAlignment="Center" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                          <Border Style="{StaticResource App.Chip}" Margin="8,0,0,0" Padding="6,0,7,1"
+                                  Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}}"
+                                  ToolTip="Saved in Created. Change what it starts there, and every profile using it follows.">
+                            <StackPanel Orientation="Horizontal">
+                              <TextBlock Text="&#xE71B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9"
+                                         Foreground="{DynamicResource App.Accent}" VerticalAlignment="Center" Margin="0,1,4,0" />
+                              <TextBlock Text="from Created" FontSize="11" Foreground="{DynamicResource App.Accent}" />
+                            </StackPanel>
+                          </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="{DynamicResource App.Muted}"
+                                   TextTrimming="CharacterEllipsis" Margin="0,2,0,0" ToolTip="{Binding Summary}" />
+                        <ItemsControl ItemsSource="{Binding Badges}" Margin="0,5,0,0"
+                                      Visibility="{Binding Badges, Converter={StaticResource BoolToVis}}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <WrapPanel />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Style="{StaticResource App.Chip}">
+                                <TextBlock Text="{Binding}" FontSize="11" Foreground="{DynamicResource App.Muted}" />
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </DockPanel>
 
-          <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,0">
-            <Button Content="+ Add" Command="{Binding AddActionCommand}" Padding="10,4" Margin="0,0,8,0" />
-            <Button Content="Remove row" Command="{Binding RemoveActionCommand}" Padding="10,4" Margin="0,0,8,0"
-                    ToolTip="Remove the selected row (or press Delete). Save to keep the change." />
-            <Button Content="Move up" Command="{Binding MoveUpCommand}" Padding="10,4" Margin="0,0,8,0" />
-            <Button Content="Move down" Command="{Binding MoveDownCommand}" Padding="10,4" />
-          </StackPanel>
+                    <!-- Details: only on the selected card. -->
+                    <Border BorderBrush="{DynamicResource App.Border}" BorderThickness="0,1,0,0" Padding="62,12,16,14"
+                            Visibility="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Converter={StaticResource BoolToVis}}">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="150" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-          <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,16,0,0">
-            <Button Content="Save" Command="{Binding SaveCommand}" Style="{StaticResource App.AccentButton}"
-                    Margin="0,0,8,0" />
-            <Button Content="Run now" Command="{Binding RunCommand}" Padding="12,7" Margin="0,0,8,0" />
-            <Button Content="Delete profile" Command="{Binding DeleteCommand}" Padding="12,7"
-                    Foreground="{DynamicResource App.Danger}"
-                    Visibility="{Binding Editor.IsProfile, Converter={StaticResource BoolToVis}}" />
-            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource App.Muted}"
-                       VerticalAlignment="Center" Margin="12,0,0,0" />
-          </StackPanel>
+                        <TextBlock Grid.Row="0" Grid.ColumnSpan="2" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,8"
+                                   Foreground="{DynamicResource App.Muted}"
+                                   Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}}"
+                                   Text="This step uses an item from Created. Change what it starts there. When and how it runs is set here." />
+
+                        <TextBlock Grid.Row="1" Text="Kind" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,3" Width="200" HorizontalAlignment="Left"
+                                  ItemsSource="{x:Static config:ActionLabels.Types}"
+                                  SelectedValuePath="Value" DisplayMemberPath="Label"
+                                  SelectedValue="{Binding Type}" IsEnabled="{Binding IsEditable}" />
+
+                        <TextBlock Grid.Row="2" Text="{Binding TargetLabel}" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
+                        <DockPanel Grid.Row="2" Grid.Column="1" Margin="0,3">
+                          <Button DockPanel.Dock="Right" Content="Browse..." Margin="6,0,0,0" Padding="10,4"
+                                  Command="{Binding DataContext.BrowseTargetCommand, ElementName=ActionsList}"
+                                  CommandParameter="{Binding}"
+                                  Visibility="{Binding CanBrowse, Converter={StaticResource BoolToVis}}" />
+                          <TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsLinked}" />
+                        </DockPanel>
+
+                        <TextBlock Grid.Row="3" Text="Arguments" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center"
+                                   Visibility="{Binding HasArguments, Converter={StaticResource BoolToVis}}" />
+                        <TextBox Grid.Row="3" Grid.Column="1" Margin="0,3" Text="{Binding Arguments, UpdateSourceTrigger=PropertyChanged}"
+                                 IsReadOnly="{Binding IsLinked}" ToolTip="Optional extra options for the program"
+                                 Visibility="{Binding HasArguments, Converter={StaticResource BoolToVis}}" />
+
+                        <TextBlock Grid.Row="4" Text="Wait first" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,3">
+                          <TextBox Text="{Binding DelaySeconds, UpdateSourceTrigger=PropertyChanged}" Width="64"
+                                   HorizontalContentAlignment="Right" />
+                          <TextBlock Text="seconds before it starts" Foreground="{DynamicResource App.Muted}"
+                                     VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="5" Text="If it fails" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Margin="0,3">
+                          <ComboBox ItemsSource="{x:Static config:ActionLabels.FailureBehaviours}" Width="200"
+                                    SelectedValuePath="Value" DisplayMemberPath="Label"
+                                    SelectedValue="{Binding FailureBehaviour}" />
+                          <StackPanel Orientation="Horizontal" Margin="10,0,0,0"
+                                      Visibility="{Binding IsRetry, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="up to" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBox Text="{Binding RetryCount, UpdateSourceTrigger=PropertyChanged}" Width="48"
+                                     HorizontalContentAlignment="Right" />
+                            <TextBlock Text="more times" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                          </StackPanel>
+                        </StackPanel>
+
+                        <CheckBox Grid.Row="6" Grid.Column="1" Content="Run as administrator" Margin="0,8,0,0"
+                                  IsChecked="{Binding RunAsAdmin}" IsEnabled="{Binding IsEditable}" />
+                      </Grid>
+                    </Border>
+                  </StackPanel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Empty list -->
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                        Visibility="{Binding Editor.Actions.Count, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+              <TextBlock Text="&#xE896;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="28"
+                         Foreground="{DynamicResource App.Muted}" HorizontalAlignment="Center" />
+              <TextBlock Text="Nothing starts yet" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,10,0,4" />
+              <TextBlock Text="Drag an app from the right, drop a file from Explorer, or use Add step."
+                         Foreground="{DynamicResource App.Muted}" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Grid>
+
+          <!-- Footer: what just happened (with Undo after a removal), and whether everything is saved. -->
+          <DockPanel Grid.Row="3" Margin="0,10,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+              <TextBlock Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
+                         Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" Margin="0,1,6,0"
+                         Visibility="{Binding SaveState, Converter={StaticResource NullToVis}}" />
+              <TextBlock Text="{Binding SaveState}" Foreground="{DynamicResource App.Muted}" FontSize="12" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+              <TextBlock Text="{Binding Status}" Foreground="{DynamicResource App.Muted}" FontSize="12"
+                         TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+              <Button Content="Undo" Command="{Binding UndoRemoveCommand}" Style="{StaticResource App.LinkButton}"
+                      Margin="10,0,0,0" VerticalAlignment="Center"
+                      Visibility="{Binding CanUndoRemove, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+          </DockPanel>
         </Grid>
 
         <!-- Side panel: Defaults (Windows startup apps) and Created (the global library). Drag from either into
@@ -235,7 +411,7 @@
                 <DockPanel DockPanel.Dock="Top" Margin="12,8,12,2">
                   <Button Content="Refresh" Command="{Binding RefreshStartupAppsCommand}" DockPanel.Dock="Right"
                           Padding="8,3" VerticalAlignment="Top" ToolTip="Read the startup apps from Windows again" />
-                  <TextBlock Text="Apps Windows starts at login. Drag one into a table or onto a profile (it is kept in Created), or double-click it. Anything Base starts is hidden while you edit a profile."
+                  <TextBlock Text="Apps Windows starts at login. Drag one into the list or onto a profile, or double-click it. Anything Base starts is hidden while you edit a profile."
                              FontSize="11" Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,0,8,0" />
                 </DockPanel>
                 <ListBox x:Name="StartupAppsList" ItemsSource="{Binding StartupApps}" Margin="6"
@@ -245,16 +421,31 @@
                   <ListBox.ItemTemplate>
                     <DataTemplate>
                       <DockPanel Cursor="SizeAll" Background="Transparent" ToolTip="{Binding Launch.Target}">
-                        <Image DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,10,0" VerticalAlignment="Center"
-                               RenderOptions.BitmapScalingMode="HighQuality">
-                          <Image.Source>
-                            <MultiBinding Converter="{StaticResource ActionIcon}">
-                              <Binding Path="Launch.Type" />
-                              <Binding Path="Launch.Target" />
-                              <Binding Path="Launch.Arguments" />
-                            </MultiBinding>
-                          </Image.Source>
-                        </Image>
+                        <Grid DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,10,0" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Launch.Type, Converter={StaticResource ActionGlyph}}"
+                                     FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16"
+                                     Foreground="{DynamicResource App.Muted}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                              <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                  <DataTrigger Binding="{Binding Source, ElementName=PanelIcon}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                  </DataTrigger>
+                                </Style.Triggers>
+                              </Style>
+                            </TextBlock.Style>
+                          </TextBlock>
+                          <Image x:Name="PanelIcon" Width="22" Height="22" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality">
+                            <Image.Source>
+                              <MultiBinding Converter="{StaticResource ActionIcon}">
+                                <Binding Path="Launch.Type" />
+                                <Binding Path="Launch.Target" />
+                                <Binding Path="Launch.Arguments" />
+                              </MultiBinding>
+                            </Image.Source>
+                          </Image>
+                        </Grid>
                         <StackPanel>
                           <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                           <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource App.Muted}"
@@ -272,7 +463,7 @@
                 <DockPanel DockPanel.Dock="Top" Margin="12,8,12,2">
                   <Button Content="+ New" Command="{Binding Library.NewCommand}" DockPanel.Dock="Right"
                           Padding="8,3" VerticalAlignment="Top" />
-                  <TextBlock Text="Set things up once, then drag them into a table or onto a profile - it saves right away. Drop table rows, defaults, or files from Explorer here to keep them."
+                  <TextBlock Text="Things you set up once and reuse. Drag one into the list or onto a profile. Drop a card, an app, or a file from Explorer here to keep it."
                              FontSize="11" Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,0,8,0" />
                 </DockPanel>
 
@@ -296,10 +487,11 @@
                     <TextBlock Grid.Row="0" Text="Name" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
                     <TextBox Grid.Row="0" Grid.Column="1" Margin="0,3"
                              Text="{Binding Library.Draft.Name, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Grid.Row="1" Text="Type" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Row="1" Text="Kind" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
                     <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,3"
-                              ItemsSource="{x:Static config:ActionEditor.ActionTypes}"
-                              SelectedItem="{Binding Library.Draft.Type}" />
+                              ItemsSource="{x:Static config:ActionLabels.Types}"
+                              SelectedValuePath="Value" DisplayMemberPath="Label"
+                              SelectedValue="{Binding Library.Draft.Type}" />
                     <TextBlock Grid.Row="2" Text="Target" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" />
                     <TextBox Grid.Row="2" Grid.Column="1" Margin="0,3"
                              Text="{Binding Library.Draft.Target, UpdateSourceTrigger=PropertyChanged}" />
@@ -329,16 +521,31 @@
                   <ListBox.ItemTemplate>
                     <DataTemplate>
                       <DockPanel Cursor="SizeAll" Background="Transparent" ToolTip="{Binding Target}">
-                        <Image DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,10,0" VerticalAlignment="Center"
-                               RenderOptions.BitmapScalingMode="HighQuality">
-                          <Image.Source>
-                            <MultiBinding Converter="{StaticResource ActionIcon}">
-                              <Binding Path="Type" />
-                              <Binding Path="Target" />
-                              <Binding Path="Arguments" />
-                            </MultiBinding>
-                          </Image.Source>
-                        </Image>
+                        <Grid DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,10,0" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Type, Converter={StaticResource ActionGlyph}}"
+                                     FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16"
+                                     Foreground="{DynamicResource App.Muted}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                              <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                  <DataTrigger Binding="{Binding Source, ElementName=PanelIcon}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                  </DataTrigger>
+                                </Style.Triggers>
+                              </Style>
+                            </TextBlock.Style>
+                          </TextBlock>
+                          <Image x:Name="PanelIcon" Width="22" Height="22" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality">
+                            <Image.Source>
+                              <MultiBinding Converter="{StaticResource ActionIcon}">
+                                <Binding Path="Type" />
+                                <Binding Path="Target" />
+                                <Binding Path="Arguments" />
+                              </MultiBinding>
+                            </Image.Source>
+                          </Image>
+                        </Grid>
                         <StackPanel>
                           <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                           <TextBlock Text="{Binding Type}" FontSize="11" Foreground="{DynamicResource App.Muted}"

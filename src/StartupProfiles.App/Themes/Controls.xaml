@@ -78,19 +78,25 @@
     </Setter>
   </Style>
 
-  <!-- Flat square button for the emoji icon picker grid. -->
+  <!-- Flat square button for the emoji icon picker grid. WPF draws emoji in one color, so it takes the text
+       color (an unset foreground drew black glyphs on the dark theme). -->
   <Style x:Key="App.EmojiButton" TargetType="Button">
     <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource App.Text}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="FontFamily" Value="Segoe UI Emoji" />
-    <Setter Property="FontSize" Value="22" />
-    <Setter Property="Width" Value="46" />
-    <Setter Property="Height" Value="46" />
-    <Setter Property="Margin" Value="3" />
+    <Setter Property="FontSize" Value="20" />
+    <Setter Property="Width" Value="42" />
+    <Setter Property="Height" Value="42" />
+    <Setter Property="Margin" Value="2" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="bd" CornerRadius="8" Background="{TemplateBinding Background}">
+          <Border x:Name="bd" CornerRadius="8" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                  TextElement.Foreground="{TemplateBinding Foreground}">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <ControlTemplate.Triggers>
@@ -99,6 +105,117 @@
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
               <Setter TargetName="bd" Property="Background" Value="{DynamicResource App.Selection}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Square icon-only button (a Segoe Fluent Icons glyph as content), quiet until hovered. -->
+  <Style x:Key="App.IconButton" TargetType="Button">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource App.Muted}" />
+    <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Width" Value="32" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="bd" CornerRadius="6" Background="{TemplateBinding Background}">
+            <ContentPresenter x:Name="content" HorizontalAlignment="Center" VerticalAlignment="Center"
+                              TextElement.Foreground="{TemplateBinding Foreground}" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource App.SurfaceHover}" />
+              <Setter Property="Foreground" Value="{DynamicResource App.Text}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource App.SurfaceAlt}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter TargetName="bd" Property="Opacity" Value="0.4" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Icon button for removing things: turns red on hover so the click is never a surprise. -->
+  <Style x:Key="App.DangerIconButton" TargetType="Button" BasedOn="{StaticResource App.IconButton}">
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="bd" CornerRadius="6" Background="{TemplateBinding Background}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                              TextElement.Foreground="{TemplateBinding Foreground}" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource App.DangerSoft}" />
+              <Setter Property="Foreground" Value="{DynamicResource App.Danger}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Text-only button in the accent color, for inline actions like "Undo". -->
+  <Style x:Key="App.LinkButton" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource App.Accent}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <ContentPresenter x:Name="content" TextElement.Foreground="{TemplateBinding Foreground}" Margin="2,0" />
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="Foreground" Value="{DynamicResource App.AccentHover}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Small rounded tag, e.g. "waits 5 s" on an action card. -->
+  <Style x:Key="App.Chip" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource App.SurfaceAlt}" />
+    <Setter Property="CornerRadius" Value="9" />
+    <Setter Property="Padding" Value="8,1,8,2" />
+    <Setter Property="Margin" Value="0,0,6,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- One action as a card in the profile editor's list. Hover lifts it; the selected card gets an accent edge. -->
+  <Style x:Key="App.ActionCard" TargetType="ListBoxItem">
+    <Setter Property="Foreground" Value="{DynamicResource App.Text}" />
+    <Setter Property="Margin" Value="0,0,0,6" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ListBoxItem">
+          <Border x:Name="bd" CornerRadius="8" BorderThickness="1"
+                  Background="{DynamicResource App.Surface}" BorderBrush="{DynamicResource App.Border}"
+                  TextElement.Foreground="{TemplateBinding Foreground}">
+            <ContentPresenter />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource App.SurfaceHover}" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource App.Surface}" />
+              <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource App.Accent}" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>

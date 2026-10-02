@@ -6,10 +6,14 @@ namespace StartupProfiles.App.Config;
 /// <summary>
 /// Editable view model for one <see cref="ProfileAction"/> (delay is edited in whole seconds). A row linked to a
 /// <see cref="LibraryItem"/> shows the item's name and values; what it starts is edited in the library, while
-/// delay, failure behaviour, and retries stay editable per row.
+/// delay, failure behaviour, and retries stay editable per row. The display properties (<see cref="DisplayName"/>,
+/// <see cref="Summary"/>, <see cref="Badges"/>) put the row in plain words for the action list.
 /// </summary>
 public sealed class ActionEditor : ObservableObject
 {
+    private static readonly string[] DisplayProperties =
+        [nameof(DisplayName), nameof(Summary), nameof(Badges), nameof(TargetLabel), nameof(CanBrowse), nameof(HasArguments), nameof(Glyph)];
+
     private ActionType _type = ActionType.LaunchApp;
     private string _target = "";
     private string _arguments = "";
@@ -20,30 +24,48 @@ public sealed class ActionEditor : ObservableObject
     private string? _libraryItemId;
     private string? _libraryItemName;
 
-    public ActionType Type { get => _type; set => SetProperty(ref _type, value); }
-
-    public string Target
-    {
-        get => _target;
-        set { if (SetProperty(ref _target, value)) OnPropertyChanged(nameof(TargetDisplay)); }
-    }
-
-    public string Arguments { get => _arguments; set => SetProperty(ref _arguments, value); }
-    public int DelaySeconds { get => _delaySeconds; set => SetProperty(ref _delaySeconds, value); }
-    public bool RunAsAdmin { get => _runAsAdmin; set => SetProperty(ref _runAsAdmin, value); }
-    public FailureBehaviour FailureBehaviour { get => _failureBehaviour; set => SetProperty(ref _failureBehaviour, value); }
-    public int RetryCount { get => _retryCount; set => SetProperty(ref _retryCount, value); }
+    public ActionType Type { get => _type; set => Set(ref _type, value); }
+    public string Target { get => _target; set => Set(ref _target, value); }
+    public string Arguments { get => _arguments; set => Set(ref _arguments, value); }
+    public int DelaySeconds { get => _delaySeconds; set => Set(ref _delaySeconds, Math.Max(0, value)); }
+    public bool RunAsAdmin { get => _runAsAdmin; set => Set(ref _runAsAdmin, value); }
+    public FailureBehaviour FailureBehaviour { get => _failureBehaviour; set => Set(ref _failureBehaviour, value); }
+    public int RetryCount { get => _retryCount; set => Set(ref _retryCount, Math.Max(1, value)); }
 
     /// <summary>The linked library item's id, or null for a standalone row.</summary>
     public string? LibraryItemId => _libraryItemId;
 
     public bool IsLinked => _libraryItemId is not null;
 
-    /// <summary>What the Target column shows: the library item's name for a linked row, else the target.</summary>
-    public string TargetDisplay => _libraryItemName ?? Target;
+    /// <summary>True when what the row starts can be edited here (a linked row is edited in Created).</summary>
+    public bool IsEditable => !IsLinked;
 
-    public static IReadOnlyList<ActionType> ActionTypes { get; } = Enum.GetValues<ActionType>();
-    public static IReadOnlyList<FailureBehaviour> FailureBehaviours { get; } = Enum.GetValues<FailureBehaviour>();
+    /// <summary>What the row is called: the library item's name, else a name read from the target.</summary>
+    public string DisplayName => _libraryItemName ??
+        (string.IsNullOrWhiteSpace(Target) ? $"New {ActionLabels.For(Type).ToLowerInvariant()}" : Startables.NameFor(ToAction()));
+
+    /// <summary>The second line: the kind of step, then what it points at (a Store app says so instead of its shell command).</summary>
+    public string Summary =>
+        string.IsNullOrWhiteSpace(Target) ? ActionLabels.For(Type)
+        : Arguments.StartsWith(@"shell:AppsFolder\", StringComparison.OrdinalIgnoreCase) ? $"{ActionLabels.For(Type)} · Microsoft Store app"
+        : $"{ActionLabels.For(Type)} · {Target}{(string.IsNullOrWhiteSpace(Arguments) ? "" : " " + Arguments)}";
+
+    /// <summary>Short tags for options that differ from the defaults ("waits 5 s", "as admin").</summary>
+    public IReadOnlyList<string> Badges => ActionLabels.Badges(DelaySeconds, FailureBehaviour, RetryCount, RunAsAdmin);
+
+    public string TargetLabel => ActionLabels.TargetLabel(Type);
+    public bool CanBrowse => IsEditable && ActionLabels.CanBrowse(Type);
+    public bool HasArguments => ActionLabels.HasArguments(Type);
+
+    /// <summary>The fallback icon glyph shown when the shell has no icon for the target.</summary>
+    public string Glyph => ActionLabels.Glyph(Type);
+
+    public bool IsRetry => FailureBehaviour == FailureBehaviour.Retry;
+
+    /// <summary>
+    /// Raised after any stored value changes (not the display-only properties), so the editor can save.
+    /// </summary>
+    public event Action<ActionEditor>? Changed;
 
     /// <summary>
     /// A row for <paramref name="action"/>, showing its library item's current values when it is linked and the
@@ -73,21 +95,19 @@ public sealed class ActionEditor : ObservableObject
         Target = item.Target;
         Arguments = item.Arguments ?? "";
         RunAsAdmin = item.RunAsAdmin;
+        var changed = _libraryItemId != item.Id || _libraryItemName != item.Name;
         _libraryItemId = item.Id;
         _libraryItemName = item.Name;
-        OnPropertyChanged(nameof(LibraryItemId));
-        OnPropertyChanged(nameof(IsLinked));
-        OnPropertyChanged(nameof(TargetDisplay));
+        LinkChanged(changed);
     }
 
     /// <summary>Turns a linked row into a standalone one that keeps its current values.</summary>
     public void Unlink()
     {
+        var changed = _libraryItemId is not null;
         _libraryItemId = null;
         _libraryItemName = null;
-        OnPropertyChanged(nameof(LibraryItemId));
-        OnPropertyChanged(nameof(IsLinked));
-        OnPropertyChanged(nameof(TargetDisplay));
+        LinkChanged(changed);
     }
 
     public ProfileAction ToAction() => new()
@@ -101,4 +121,26 @@ public sealed class ActionEditor : ObservableObject
         RetryCount = RetryCount,
         LibraryItemId = LibraryItemId,
     };
+
+    private void Set<T>(ref T field, T value, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+    {
+        if (!SetProperty(ref field, value, name)) return;
+        if (name == nameof(FailureBehaviour)) OnPropertyChanged(nameof(IsRetry));
+        RaiseDisplay();
+        Changed?.Invoke(this);
+    }
+
+    private void LinkChanged(bool changed)
+    {
+        OnPropertyChanged(nameof(LibraryItemId));
+        OnPropertyChanged(nameof(IsLinked));
+        OnPropertyChanged(nameof(IsEditable));
+        RaiseDisplay();
+        if (changed) Changed?.Invoke(this);
+    }
+
+    private void RaiseDisplay()
+    {
+        foreach (var property in DisplayProperties) OnPropertyChanged(property);
+    }
 }

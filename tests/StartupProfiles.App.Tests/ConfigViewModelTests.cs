@@ -213,7 +213,7 @@ public sealed class ConfigViewModelTests
         Assert.Equal("Steam", item.Name);
         Assert.True(added.IsLinked);
         Assert.Equal(item.Id, added.LibraryItemId);
-        Assert.Equal("Steam", added.TargetDisplay);
+        Assert.Equal("Steam", added.DisplayName);
         Assert.Contains(viewModel.Library.Items, r => r.Id == item.Id);
     }
 
@@ -250,7 +250,7 @@ public sealed class ConfigViewModelTests
         viewModel.Library.SaveCommand.Execute(null);
 
         var row = Assert.Single(viewModel.Editor!.Actions);
-        Assert.Equal("Steam (big picture)", row.TargetDisplay);
+        Assert.Equal("Steam (big picture)", row.DisplayName);
         Assert.Equal("-bigpicture", row.Arguments);
         Assert.Equal("Used by Games.", viewModel.Library.UsedBy);
         Assert.Equal("-bigpicture", services.Library.Find(item.Id)!.Arguments);
@@ -271,7 +271,7 @@ public sealed class ConfigViewModelTests
         Assert.Empty(viewModel.Library.Items);
         var row = Assert.Single(viewModel.Editor!.Actions);
         Assert.False(row.IsLinked);
-        Assert.Equal(@"C:\Steam\steam.exe", row.TargetDisplay);
+        Assert.Equal("steam", row.DisplayName);
         var stored = Assert.Single(services.Profiles.Find("games")!.Actions);
         Assert.Null(stored.LibraryItemId);
         Assert.Equal(@"C:\Steam\steam.exe", stored.Target);

@@ -98,7 +98,8 @@ internal static class Program
         }
 
         void OpenConfig() =>
-            new ConfigWindow(new ConfigViewModel(profiles, baseStore, library, new WindowsStartupAppCatalog(), executor, prompts),
+            new ConfigWindow(new ConfigViewModel(profiles, baseStore, library, new WindowsStartupAppCatalog(), executor, prompts,
+                    new DebouncedSaveScheduler()),
                 ThemeManager.Parse(config.GetValue("theme")), ApplyTheme).Show();
 
         // At most one launcher: reopening it (tray, or launching the app again) brings the open one forward.
