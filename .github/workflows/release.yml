@@ -50,7 +50,7 @@ jobs:
       # Sign before zipping. A zip carries no signature of its own, so the executables inside are
       # the only thing SmartScreen can check once the user extracts them.
       # Until a certificate exists this warns and continues; once WINDOWS_CERT_PFX_BASE64 is set it
-      # signs and verifies. Add -Require then. See CodePrint docs/release-signing.md.
+      # signs and verifies. Add -Require then. See docs/release-signing.md.
       - name: Sign executables
         shell: pwsh
         env:
