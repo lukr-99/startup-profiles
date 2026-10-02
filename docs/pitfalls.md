@@ -19,6 +19,28 @@ came from a tool or platform trap. Put new entries at the top, in this shape:
 A pitfall that could hit another repository is also reported to CodePrint. CodePrint's
 `docs/pitfalls/README.md` explains how.
 
+## The themed combo box ignores DisplayMemberPath
+
+- Symptom: a combo box bound to records shows `Choice { Value = Default, Label = Ask me }` as the
+  selected text, while the open list looks fine.
+- Cause: the `ComboBox` template in `Themes/Controls.xaml` shows the selection through a plain
+  `ContentPresenter` on `SelectionBoxItem`, which falls back to `ToString()` and skips
+  `DisplayMemberPath`.
+- Fix: give option records a `ToString()` that returns the label (`Config/Choice`,
+  `Discovery/PlacementOption`), or bind the template's presenter to `SelectionBoxItemTemplate`.
+- Closed off by: not yet (checked by offscreen renders only)
+- Seen: 2026-10-02, profile editor redesign (commit d1a4cc5)
+
+## Emoji buttons draw black on the dark theme
+
+- Symptom: the icon picker's emoji are almost invisible in dark mode.
+- Cause: WPF draws emoji in one color (no color font support). A button style without a
+  `Foreground` setter gives them the default black.
+- Fix: set `Foreground` to `App.Text` in any style that shows emoji (`App.EmojiButton`), and check
+  dark mode in a render.
+- Closed off by: not yet
+- Seen: 2026-10-02, icon picker (commit d1a4cc5)
+
 ## A packaged app's shell sees a different AppData and HKCU
 
 - Symptom: `install/install.ps1` reports success, but the app is not in
