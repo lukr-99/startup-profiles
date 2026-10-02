@@ -287,7 +287,8 @@
       <Setter.Value>
         <ControlTemplate TargetType="ComboBox">
           <Grid>
-            <ToggleButton Focusable="False" ClickMode="Press"
+            <!-- Style null: WPF UI's implicit ToggleButton style (merged by DotNetLib.Tray) would left-align and shrink it. -->
+            <ToggleButton Focusable="False" ClickMode="Press" Style="{x:Null}"
                           Template="{StaticResource App.ComboToggle}"
                           IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" />
             <ContentPresenter x:Name="ContentSite" IsHitTestVisible="False"

@@ -39,16 +39,20 @@ StartupProfiles.slnx
   src/StartupProfiles.App    net10.0-windows    WinExe host (WPF UI + tray + loopback API)
     Program.cs     STA entry point (see file for boot sequence)
     Api/           loopback-only ASP.NET Core endpoints (for agents / external tools)
-    Tray/          NotifyIcon: re-run a profile, open config, quit
+    Tray/          tray icon + menu on DotNetLib.Tray; TrayMenuModel holds the menu's contents
     Launcher/      the minimal login selector (WPF window + view model)
     Config/        the profile editor (WPF window + view models)
-    Mvvm/          ObservableObject + RelayCommand (see docs/adr/0001-local-wpf-mvvm.md)
-    Themes/        light/dark semantic-token dictionaries + ThemeManager
+    Discovery/     the "New startup apps" window
+    Updates/       UpdateCoordinator: check, download, verify, install (DotNetLib.Core.Updating)
+    Themes/        light/dark/high-contrast token dictionaries + ThemeManager over DotNetLib's theme engine
+  installer/       Inno Setup script + build-installer.ps1 (the release's StartupProfiles-Setup-<v>.exe)
 ```
 
 `Core` targets plain `net10.0` so the execution engine and models stay unit-testable and
 free of UI concerns. `App` targets `net10.0-windows` and is a **WPF** app: WPF for the launcher
-and config windows, a WinForms `NotifyIcon` for the tray, and ASP.NET Core for the loopback API.
+and config windows, DotNetLib.Tray (H.NotifyIcon and WPF UI) for the tray, the theme engine, and single
+instance, DotNetLib.Core for MVVM and self-update, and ASP.NET Core for the loopback API
+(see [docs/adr/0003-adopt-dotnetlib-packages.md](docs/adr/0003-adopt-dotnetlib-packages.md)).
 The desktop UI talks to Core in-process (through the same stores and `ProfileExecutor`); the
 loopback API exists for agents and external tools, not for the built-in UI.
 
@@ -205,8 +209,9 @@ Built in StartupProfiles.App (host):
 - **Api/ApiEndpoints** - the endpoints in [docs/API.md](docs/API.md): health, profile CRUD, run, history,
   and register. Deleting a profile and registering an app are both two-phase (a `ConfirmationService`
   token) so nothing destructive or additive happens without an explicit confirm.
-- **Tray** - `NotifyIcon` menu listing profiles (click to re-run via `ProfileExecutor`), open data
-  folder, exit.
+- **Tray** - DotNetLib's `TrayIconHost` (left click opens the launcher) with a menu built by
+  `TrayMenuBuilder` from `TrayMenuModel`: open launcher, run a profile (the active one checked), configuration,
+  a Theme submenu, check for or install an update, open the data folder, version, exit.
 - `Core/Confirmations/ConfirmationService` and `Core/Execution/ProfileExecutor` (run-then-record) are
   in Core so they are unit-testable; the host and tray both use the executor as the single source of
   truth for running a profile.
@@ -221,11 +226,22 @@ Built in StartupProfiles.App (WPF UI - Milestone 4):
   cards that save themselves (`ISaveScheduler`), run, and full backup/restore. Deleting asks for
   confirmation; dialogs are behind the
   `IUserPrompts` seam so the view models are unit-tested without a UI.
-- **Mvvm** - local `ObservableObject` / `RelayCommand` mirroring dotnetlib's shape.
-- **Themes** - light/dark semantic-token `ResourceDictionary` files and a `ThemeManager` that follows
-  the Windows setting in `System` mode; the config window exposes a System/Light/Dark picker.
-- The WPF UI calls Core directly (no HTTP); a WinForms `NotifyIcon` provides the tray on the WPF
-  message loop.
+- **Mvvm** - `ObservableObject` / `RelayCommand` from `DotNetLib.Core.Mvvm`.
+- **Themes** - `ThemeManager` over DotNetLib's `TrayThemeApplier`: System/Light/Dark, following Windows
+  while the app runs, and Windows high contrast. After every apply it swaps in the app's `App.*` token
+  dictionary (Light, Dark, or HighContrast.xaml, which maps to system colors); `Controls.xaml` is merged
+  last so the app's control styles win over WPF UI's.
+- **Updates** - `Updates/UpdateCoordinator`: `GitHubReleaseSource` finds the latest release's
+  `StartupProfiles-Setup-*.exe`, `ReleaseVersion` decides if it is newer, the installer is downloaded to
+  `%TEMP%\StartupProfiles\updates`, checked against the `.sha256` published next to it, and started with
+  `/SILENT`; the app exits only after the installer started. A daily automatic check (setting
+  `checkForUpdates`, last run in `lastUpdateCheck`) and Settings > Updates or the tray drive it. The
+  release page is the manual path.
+- **Installer** - `installer/StartupProfiles.iss` (per user, `%LOCALAPPDATA%\Programs\StartupProfiles`,
+  the same folder as `install.ps1`). It registers login and the protocol through the app's maintenance
+  commands, offers the startup takeover on a first install only, relaunches the app after a silent
+  update, and on uninstall stops the app, restores the startup apps, and removes its registrations.
+- The WPF UI calls Core directly (no HTTP); the tray lives on the WPF message loop.
 
 Deviations and decisions worth noting:
 

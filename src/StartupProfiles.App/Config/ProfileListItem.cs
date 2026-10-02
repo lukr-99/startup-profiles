@@ -1,4 +1,4 @@
-using StartupProfiles.App.Mvvm;
+using DotNetLib.Core.Mvvm;
 using StartupProfiles.App.Ui;
 
 namespace StartupProfiles.App.Config;

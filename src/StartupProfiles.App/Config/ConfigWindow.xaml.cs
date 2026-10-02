@@ -57,6 +57,13 @@ public partial class ConfigWindow : Window
         Themes.ThemeManager.ApplyTitleBar(this);
     }
 
+    private void OnOpenLink(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true }); }
+        catch (System.ComponentModel.Win32Exception) { /* No browser registered; the URL is still visible. */ }
+        e.Handled = true;
+    }
+
     private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_ready) _applyTheme((ThemeMode)ThemeBox.SelectedIndex);

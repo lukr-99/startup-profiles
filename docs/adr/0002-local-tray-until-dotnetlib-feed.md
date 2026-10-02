@@ -1,6 +1,6 @@
 # 0002 - Keep the local tray, theme, MVVM, and single-instance code until DotNetLib has a reachable feed
 
-Status: accepted (2026-10-02)
+Status: superseded by [ADR 0003](0003-adopt-dotnetlib-packages.md) (2026-10-02)
 
 CodePrint now says every Windows tray app uses `DotNetLib.Tray` for the tray icon, menu, theming, and
 dialogs (CodePrint `RULES.md` and `docs/ui-and-shared-libraries.md`, section "Windows tray apps").

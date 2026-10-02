@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
-using StartupProfiles.App.Mvvm;
+using DotNetLib.Core.Mvvm;
 using StartupProfiles.App.Ui;
 using StartupProfiles.Core.Execution;
 using StartupProfiles.Core.Models;

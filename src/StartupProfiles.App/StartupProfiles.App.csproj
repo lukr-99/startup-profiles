@@ -5,9 +5,8 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- WPF for the launcher / config windows; WinForms only for the tray NotifyIcon. -->
+    <!-- WPF for every window; the tray icon comes from DotNetLib.Tray (H.NotifyIcon), so no WinForms. -->
     <UseWPF>true</UseWPF>
-    <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>StartupProfiles</AssemblyName>
     <RootNamespace>StartupProfiles.App</RootNamespace>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
@@ -23,10 +22,11 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
-  <!-- WinForms is used only by the tray icon (which imports it explicitly). Drop the implicit
-       global using so WPF types (Application, MessageBox, Button, ...) resolve unambiguously. -->
+  <!-- Shared .NET building blocks (CodePrint standard): MVVM and self-update from Core, the tray kit and theme
+       engine from Tray. Restored from the GitHub Packages feed in nuget.config. -->
   <ItemGroup>
-    <Using Remove="System.Windows.Forms" />
+    <PackageReference Include="DotNetLib.Core" Version="0.2.0" />
+    <PackageReference Include="DotNetLib.Tray" Version="0.2.0" />
   </ItemGroup>
 
   <ItemGroup>

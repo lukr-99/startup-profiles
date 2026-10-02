@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Input;
 using StartupProfiles.App.Interaction;
-using StartupProfiles.App.Mvvm;
+using DotNetLib.Core.Mvvm;
 using StartupProfiles.Core.Backup;
 using StartupProfiles.Core.Execution;
 using StartupProfiles.Core.Library;
@@ -52,6 +52,7 @@ public sealed class ConfigViewModel : ObservableObject
     /// <param name="saveScheduler">When edits are written; saves at once when omitted (tests).</param>
     /// <param name="config">App settings shown on the Settings tab; those settings are hidden when omitted.</param>
     /// <param name="backup">Backup and restore for the Settings tab; both are unavailable when omitted.</param>
+    /// <param name="updates">The updater for the Settings tab's Updates section; hidden when omitted.</param>
     public ConfigViewModel(
         IProfileStore profiles,
         IBaseStore baseStore,
@@ -61,8 +62,12 @@ public sealed class ConfigViewModel : ObservableObject
         IUserPrompts prompts,
         ISaveScheduler? saveScheduler = null,
         IConfigStore? config = null,
-        BackupService? backup = null)
+        BackupService? backup = null,
+        Updates.UpdateCoordinator? updates = null)
     {
+        Updates = updates;
+        CheckForUpdatesCommand = new RelayCommand(_ => { if (Updates is { } u) _ = u.CheckAsync(); });
+        InstallUpdateCommand = new RelayCommand(_ => InstallUpdate());
         _profiles = profiles;
         _base = baseStore;
         _startupCatalog = startupCatalog;
@@ -94,6 +99,14 @@ public sealed class ConfigViewModel : ObservableObject
         LoadList();
         LoadStartupApps();
     }
+
+    /// <summary>The updater shown on the Settings tab, or null when the app has none (tests).</summary>
+    public Updates.UpdateCoordinator? Updates { get; }
+
+    public ICommand CheckForUpdatesCommand { get; }
+
+    /// <summary>Installs the available update after the user agrees; the app then exits for the installer.</summary>
+    public ICommand InstallUpdateCommand { get; }
 
     /// <summary>Sidebar rows: the base first (<see cref="ProfileListItem.IsBase"/>), then every profile.</summary>
     public ObservableCollection<ProfileListItem> Profiles { get; } = [];
@@ -628,6 +641,15 @@ public sealed class ConfigViewModel : ObservableObject
         if (target < 0 || target >= Editor.Actions.Count) return;
         Editor.Actions.Move(index, target);
         SaveEdits("Moved.");
+    }
+
+    private void InstallUpdate()
+    {
+        if (Updates is not { AvailableVersion: { } version } updates) return;
+        _saves.Flush();
+        if (!_prompts.Confirm($"Install version {version}? Startup Profiles closes, updates, and opens again. Your profiles and settings stay as they are."))
+            return;
+        _ = updates.InstallAsync();
     }
 
     /// <summary>Writes a full backup (profiles, base, library, settings) to a file the user picks.</summary>

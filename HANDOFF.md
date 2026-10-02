@@ -38,7 +38,7 @@ dotnet format StartupProfiles.slnx --verify-no-changes
 | --- | --- | --- |
 | `StartupProfiles.Core` | net10.0 | Models, action handlers + registry, `ProfileRunner`/`ProfileExecutor`, JSON stores, `ConfirmationService`, and the Windows seam interfaces. Portable and unit-tested. |
 | `StartupProfiles.Windows` | net10.0-windows | Windows adapters: startup registration (HKCU Run key), service control, VPN (`rasdial`), and the action-registry composition root. |
-| `StartupProfiles.App` | net10.0-windows | WPF launcher + config UI, WinForms tray, and the loopback ASP.NET Core API + `endpoint.json`. |
+| `StartupProfiles.App` | net10.0-windows | WPF launcher + config UI, the tray (DotNetLib.Tray), the updater, and the loopback ASP.NET Core API + `endpoint.json`. |
 | `tests/*` | net10.0(-windows) | xUnit: Core behavior, the Windows registry round-trip, HTTP API, and WPF view models. |
 
 Key design points:
@@ -53,8 +53,11 @@ Key design points:
 ## Decisions a new session should know
 
 - UI is **WPF**, not the WebView2 approach the original docs named. See
-  [docs/adr/0001-local-wpf-mvvm.md](docs/adr/0001-local-wpf-mvvm.md). Local `Mvvm/` mirrors dotnetlib;
-  no cross-repo dependency (no shared NuGet feed).
+  [docs/adr/0001-local-wpf-mvvm.md](docs/adr/0001-local-wpf-mvvm.md). MVVM, the tray, the theme
+  engine, single instance, and self-update now come from `DotNetLib.Core` / `DotNetLib.Tray` 0.2.0 on
+  GitHub Packages ([ADR 0003](docs/adr/0003-adopt-dotnetlib-packages.md)); restoring needs the
+  `dotnetlib` NuGet source with a `read:packages` token (README, Requirements; CI uses the
+  `DOTNETLIB_PACKAGES_TOKEN` secret).
 - The App pins `RuntimeFrameworkVersion=10.0.7` to work around a dev-box SDK/runtime mismatch (the WPF
   markup-compile helper wanted 10.0.9). Remove the pin when the box has a matching runtime.
 - Conventions come from the owner's `CodePrint` (rules) and `dotnetlib` (.NET architecture) repos, with
@@ -124,25 +127,25 @@ gets two launch actions.
 stamps it into the assembly via `-p:Version=<tag>` (the one version source is `VersionPrefix` in
 `Directory.Build.props`; Debug builds add a `-dev` suffix), tests, publishes a self-contained win-x64
 build, zips it as `StartupProfiles-<version>-win-x64.zip`, and attaches it to a GitHub Release with
-generated notes. Mirrors GameScout's workflow, minus the Inno installer (this app installs via
-`install/install.ps1`). Releases are private until the repo is made public. To ship: bump the tag and
-`git push origin vX.Y.Z`.
+generated notes. It also builds the Inno installer from the signed publish folder, signs it, and attaches
+`StartupProfiles-Setup-<version>.exe` with its `.sha256` (checksums are written after signing). To ship:
+bump `VersionPrefix`, then push the matching tag `vX.Y.Z`.
 
-Not yet (parity with GameScout, if wanted later): an Inno Setup installer artifact and an in-app update
-checker that reads the latest GitHub Release.
+**The updater needs public releases**: it reads `releases/latest` without a token, and the repository is
+private today. Until it is public (or releases move to a public repo), "Check for updates" says it could
+not reach the release page.
 
 ## UI / visual polish (done)
 
 `Themes/Controls.xaml` holds a shared implicit-style dictionary (buttons, text boxes, combo boxes,
 list boxes, checkboxes, DataGrid, tabs, thin scrollbars) that both themes merge and re-color live via
-`DynamicResource`. Native window title bars follow the theme (DWM immersive dark mode); the WinForms
-tray menu is themed via a custom renderer. The app has an icon (`Assets/app.ico`) on the exe, title
+`DynamicResource`. Native window title bars follow the theme (DWM immersive dark mode); the tray menu is
+WPF UI's, themed by DotNetLib's theme engine. The app has an icon (`Assets/app.ico`) on the exe, title
 bars, and tray. The config window is split into **Profiles** and **Settings** tabs (theme picker,
 export/import, a disabled "Sync - coming soon" placeholder, and version). The launcher hides profile
 labels below a width threshold (icons-only) instead of clipping text. Profiles have **emoji icons**
 chosen from a picker (`IUserPrompts.PickIcon`), rendered on the launcher tiles. A global dispatcher
-exception handler logs to `error.log` and keeps the app alive. `dotnetlib` remains the longer-term
-style reference.
+exception handler logs to `error.log` and keeps the app alive.
 
 ## Base (done)
 
@@ -158,9 +161,9 @@ run"). Backups include the base (see ARCHITECTURE.md, Data safety).
 
 ## Relaunch and action icons (done)
 
-`SingleInstance` owns the per-session mutex plus a named auto-reset event: launching the app while it
-already runs (Start Menu, shortcut) signals the running instance, which shows its launcher (or brings the
-open one forward) instead of the second process exiting silently. The launcher is now a single window.
+DotNetLib's `SingleInstance` (one per Windows user, a named pipe): launching the app while it already
+runs (Start Menu, shortcut) knocks on the running instance, which shows its launcher (or brings the open
+one forward) instead of the second process exiting silently. The launcher is a single window.
 
 The config window's action tables show each action's shell icon, like Windows' Startup apps page:
 `ActionIconSource` maps an action to a shell item (exe/shortcut/folder path, `shell:AppsFolder\...` for
@@ -256,8 +259,20 @@ Windows". The default is Everything when startup apps were taken over before (`S
 else leave it. Apply places each one; a profile or Base choice adds a linked step and switches the entry off in
 Windows, recorded in `startup-takeover.json` so uninstall restores it. "Ask me later" decides nothing, so they
 come back next launch. Settings has a checkbox to turn the check off (`discoverStartupApps` in `config.json`).
-## Next
+## DotNetLib tray and themes, installer, and updates (done)
+
+See [ADR 0003](docs/adr/0003-adopt-dotnetlib-packages.md) and ARCHITECTURE.md (UI surfaces). The tray
+is `TrayIconHost` + `TrayMenuBuilder` with a tested `TrayMenuModel`; the theme is `TrayThemeApplier` with
+the app's tokens and styles layered on top (plus a high-contrast token set); WinForms is gone. WPF UI's
+implicit styles now reach controls the app does not style; the combo box's inner toggle opts out (see
+docs/pitfalls.md).
+
+`installer/build-installer.ps1` builds `installer/dist/StartupProfiles-Setup-<version>.exe` locally (needs
+Inno Setup 6). `UpdateCoordinator` checks once a day and on demand, verifies the installer's SHA-256, and
+installs silently on consent; Settings > Updates and the tray show it.
+
 
 1. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.
-2. Optional: revisiting the dotnetlib dependency once a shared feed exists; a real "Sync between
-   machines" implementation (the Settings placeholder is wired for it).
+2. Make releases public (or publish them to a public repo) so the updater can see them, then cut the
+   first release.
+3. Optional: a real "Sync between machines" implementation (the Settings placeholder is still there).
