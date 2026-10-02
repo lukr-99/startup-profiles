@@ -7,7 +7,7 @@
 >
 > Note: this design originally called for a WebView2 UI over the loopback server (the Treeline
 > pattern). Milestone 4 switched to a native **WPF** UI talking to Core in-process; the loopback API
-> remains for agents. See [docs/adr/0001-local-wpf-mvvm.md](adr/0001-local-wpf-mvvm.md).
+> remains for agents. See [docs/adr/0001-local-wpf-mvvm.md](docs/adr/0001-local-wpf-mvvm.md).
 
 ## Guiding principle
 
@@ -176,7 +176,7 @@ Built in StartupProfiles.App (host):
   (Kestrel bound to `127.0.0.1`), starts it, writes `endpoint.json`, then runs the tray (or waits
   headless with `--headless`). Composition root: `ProfileStore` / `ConfigStore` / `HistoryStore`,
   `WindowsRuntime.CreateActionRegistry()`, `ProfileRunner`, `ProfileExecutor`, `ConfirmationService`.
-- **Api/ApiEndpoints** - the endpoints in [docs/API.md](API.md): health, profile CRUD, run, history,
+- **Api/ApiEndpoints** - the endpoints in [docs/API.md](docs/API.md): health, profile CRUD, run, history,
   and register. Deleting a profile and registering an app are both two-phase (a `ConfirmationService`
   token) so nothing destructive or additive happens without an explicit confirm.
 - **Tray** - `NotifyIcon` menu listing profiles (click to re-run via `ProfileExecutor`), open data
@@ -221,7 +221,7 @@ Deviations and decisions worth noting:
   `TreatWarningsAsErrors`, and `latest-recommended` analysis; `tests/Directory.Build.props`
   suppresses CA1707 for `Method_Condition_ExpectedResult` test names.
 - The UI is **WPF**, not the WebView2 approach the original design named. The reasons and trade-offs
-  are in [docs/adr/0001-local-wpf-mvvm.md](adr/0001-local-wpf-mvvm.md).
+  are in [docs/adr/0001-local-wpf-mvvm.md](docs/adr/0001-local-wpf-mvvm.md).
 - The App project pins `RuntimeFrameworkVersion` to `10.0.7` because the dev SDK resolves `10.0.9` for
   the WPF markup-compile helper, which is not installed here; roll-forward still runs it on newer
   patches. Revisit once the box has a matching runtime.

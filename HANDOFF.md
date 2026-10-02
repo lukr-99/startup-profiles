@@ -1,7 +1,7 @@
 # Handoff
 
 Snapshot of Windows Startup Profiles as of 2026-08-31. For the full design see
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); for conventions see [AGENTS.md](AGENTS.md) and
+[docs/ARCHITECTURE.md](ARCHITECTURE.md); for conventions see [AGENTS.md](AGENTS.md) and
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Status: Milestones 1-5, installer, release CI, UI polish, startup takeover, base done; conditions next

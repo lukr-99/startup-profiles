@@ -4,7 +4,7 @@ Repository-specific guidance for coding agents working on Windows Startup Profil
 
 ## Required context
 
-1. Read [ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing module seams or dependency direction;
+1. Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing module seams or dependency direction;
    its "Implementation status" section is the source of truth for what exists.
 2. Read [docs/API.md](docs/API.md) and [docs/INTEGRATION.md](docs/INTEGRATION.md) before touching the
    loopback API or the registration contract.
