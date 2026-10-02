@@ -9,6 +9,9 @@ permissions:
 
 env:
   SOLUTION_PATH: StartupProfiles.slnx
+  # DotNetLib packages come from GitHub Packages, which needs a token even to read. The secret is a
+  # classic PAT with read:packages (see nuget.config and dotnetlib's README).
+  NuGetPackageSourceCredentials_dotnetlib: Username=lukr-99;Password=${{ secrets.DOTNETLIB_PACKAGES_TOKEN }}
 
 jobs:
   build-test:

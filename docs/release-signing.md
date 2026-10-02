@@ -1,5 +1,10 @@
 # Release signing
 
+The release workflow signs the published executables (before they are zipped and packed into the
+installer) and then the installer itself, `StartupProfiles-Setup-<version>.exe`. The `.sha256` files are
+written after signing, so they match the signed downloads; the in-app updater refuses an installer whose
+hash does not match.
+
 This page describes how release executables get an Authenticode signature today. Two scripts in
 `tools/` and one step in `.github/workflows/release.yml` do the work.
 

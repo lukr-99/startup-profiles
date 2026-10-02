@@ -25,9 +25,9 @@ to that profile - as a small declarative startup workflow, not just a list of `.
 
 > Status: **working**. The portable Core, the Windows adapters, the App host (loopback API + tray), the
 > WPF launcher and config UIs, and the integration contract (protocol / CLI / API + confirmation window)
-> are implemented and tested, and `install/install.ps1` installs it. Still to come: UI visual polish,
-> profile conditions, and an app icon. See [ARCHITECTURE.md](ARCHITECTURE.md) for the current
-> implementation status.
+> are implemented and tested. A per-user installer (`StartupProfiles-Setup-<version>.exe`) installs it and
+> the app updates itself from GitHub Releases. Still to come: profile conditions and sync between
+> machines. See [ARCHITECTURE.md](ARCHITECTURE.md) for the current implementation status.
 
 ## The idea
 
@@ -102,6 +102,10 @@ Contract details: [docs/INTEGRATION.md](docs/INTEGRATION.md).
 
 - Windows 10/11
 - .NET 10 SDK (to build)
+- To build: read access to the owner's DotNetLib packages on GitHub Packages. Once, run
+  `gh auth refresh -s read:packages`, then
+  `dotnet nuget add source https://nuget.pkg.github.com/lukr-99/index.json --name dotnetlib --username lukr-99 --password (gh auth token)`
+  (the name must be `dotnetlib`, to match `nuget.config`)
 
 ## Quick start
 
@@ -115,7 +119,16 @@ dotnet test StartupProfiles.slnx
 dotnet run --project src/StartupProfiles.App
 ```
 
-Or install it for the current user (no elevation). This publishes the app to
+Or install it for the current user (no elevation) with the installer from the
+[latest release](https://github.com/lukr-99/startup-profiles/releases/latest), or build one with
+`.\installer\build-installer.ps1` (needs Inno Setup 6). It installs to
+`%LOCALAPPDATA%\Programs\StartupProfiles`, starts at login, registers the `startupprofiles://` protocol,
+installs the Claude agent skill, and on a first install offers to take over Windows startup (below).
+Uninstall it from Windows Settings > Apps; that switches the taken-over startup apps back on and keeps
+your profiles in `%APPDATA%\StartupProfiles`. The app checks once a day for a new version and installs
+it when you agree (Settings > Updates, or the tray menu).
+
+From source, the script installer does the same. This publishes the app to
 `%LOCALAPPDATA%\Programs\StartupProfiles`, adds a Start Menu shortcut, registers the launcher to run
 at login, registers the `startupprofiles://` protocol, and installs the Claude agent skill:
 

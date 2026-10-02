@@ -19,6 +19,18 @@ came from a tool or platform trap. Put new entries at the top, in this shape:
 A pitfall that could hit another repository is also reported to CodePrint. CodePrint's
 `docs/pitfalls/README.md` explains how.
 
+## WPF UI reshapes the toggle inside the app's combo box
+
+- Symptom: after adopting DotNetLib.Tray, every combo box shows bare text with its chevron on the left
+  and no border.
+- Cause: `TrayResources.Merge` brings WPF UI's implicit control styles. The app's `ComboBox` template in
+  `Themes/Controls.xaml` hosts a plain `ToggleButton`, which picked up WPF UI's `ToggleButton` style and
+  was left-aligned and shrunk. The app's own implicit styles only cover the controls they name.
+- Fix: `Style="{x:Null}"` on the inner `ToggleButton`. Check any other template part that is a bare
+  standard control.
+- Closed off by: not yet (offscreen renders); reported to CodePrint as a #pitfall
+- Seen: 2026-10-02, DotNetLib adoption
+
 ## The themed combo box ignores DisplayMemberPath
 
 - Symptom: a combo box bound to records shows `Choice { Value = Default, Label = Ask me }` as the

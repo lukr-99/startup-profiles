@@ -28,3 +28,10 @@ Nothing is released yet. The first release will be 0.1.0, with this baseline:
   so you choose the profile they start with.
 - Full backup and restore of profiles, Base, Created items, and settings, with a check and a preview
   before anything is replaced.
+- A per-user installer, `StartupProfiles-Setup-<version>.exe`, attached to every release with its
+  SHA-256 checksum.
+- Updates: the app checks GitHub Releases once a day (or on demand in Settings and the tray), downloads
+  the installer, checks its SHA-256, and installs it silently when you agree.
+- The tray, theme engine, single-instance handling, and MVVM base now come from the shared DotNetLib
+  packages. The theme follows Windows high contrast, and the tray menu has a Theme submenu and marks the
+  active profile.

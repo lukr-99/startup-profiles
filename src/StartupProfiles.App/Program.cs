@@ -1,7 +1,10 @@
 using System.IO;
+using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows;
+using DotNetLib.Core.Updating;
+using DotNetLib.Tray;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -15,6 +18,7 @@ using StartupProfiles.App.Launcher;
 using StartupProfiles.App.Maintenance;
 using StartupProfiles.App.Themes;
 using StartupProfiles.App.Tray;
+using StartupProfiles.App.Updates;
 using StartupProfiles.Core.Confirmations;
 using StartupProfiles.Core.Execution;
 using StartupProfiles.Core.Startup;
@@ -26,6 +30,8 @@ namespace StartupProfiles.App;
 
 internal static class Program
 {
+    private const string InstanceName = "StartupProfiles";
+
     [STAThread]
     private static void Main(string[] args)
     {
@@ -49,12 +55,12 @@ internal static class Program
 
         var options = LaunchOptions.Parse(args);
 
-        // Single instance: a later launch (e.g. from the Start Menu while the app sits in the tray) asks the
-        // running instance to show its launcher, then exits.
-        using var instance = new SingleInstance();
-        if (!instance.IsFirst)
+        // Single instance per Windows user (DotNetLib.Tray): a later launch, e.g. from the Start Menu while the
+        // app sits in the tray, knocks on the running instance, which shows its launcher, then exits.
+        using var instance = SingleInstance.TryAcquire(InstanceName);
+        if (instance is null)
         {
-            instance.SignalFirst();
+            SingleInstance.Knock(InstanceName);
             return;
         }
 
@@ -84,8 +90,7 @@ internal static class Program
         var executor = host.Services.GetRequiredService<ProfileExecutor>();
         var config = host.Services.GetRequiredService<IConfigStore>();
         var history = host.Services.GetRequiredService<IHistoryStore>();
-        var backup = new Core.Backup.BackupService(profiles, baseStore, host.Services.GetRequiredService<ILibraryStore>(), config,
-            typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "");
+        var backup = new Core.Backup.BackupService(profiles, baseStore, host.Services.GetRequiredService<ILibraryStore>(), config, AppVersion);
         var prompts = new UserPrompts();
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -94,19 +99,35 @@ internal static class Program
             Diagnostics.CrashLog.Write("Dispatcher", e.Exception);
             e.Handled = true; // Keep the app alive; the exception is logged to error.log for diagnosis.
         };
-        var theme = new ThemeManager(app);
+        using var theme = new ThemeManager(app);
         theme.Apply(ThemeManager.Parse(config.GetValue("theme")));
 
+        using var http = new HttpClient();
+        http.DefaultRequestHeaders.UserAgent.ParseAdd($"StartupProfiles/{AppVersion}");
+        var updates = new UpdateCoordinator(
+            new GitHubReleaseSource(http, "lukr-99", "startup-profiles",
+                name => name.StartsWith("StartupProfiles-Setup-", StringComparison.OrdinalIgnoreCase) &&
+                        name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)),
+            http, AppVersion, config, StartInstaller,
+            Path.Combine(Path.GetTempPath(), "StartupProfiles", "updates"));
+        updates.ExitRequested += () => app.Dispatcher.BeginInvoke(() => app.Shutdown());
+
+        TrayIcon? tray = null;
         void ApplyTheme(ThemeMode mode)
         {
             theme.Apply(mode);
             config.SetValue("theme", mode.ToString());
+            tray?.Refresh();
         }
 
-        void OpenConfig() =>
-            new ConfigWindow(new ConfigViewModel(profiles, baseStore, library, new WindowsStartupAppCatalog(), executor, prompts,
-                    new DebouncedSaveScheduler(), config, backup),
-                ThemeManager.Parse(config.GetValue("theme")), ApplyTheme).Show();
+        void OpenConfig()
+        {
+            var window = new ConfigWindow(new ConfigViewModel(profiles, baseStore, library, new WindowsStartupAppCatalog(), executor,
+                    prompts, new DebouncedSaveScheduler(), config, backup, updates),
+                ThemeManager.Parse(config.GetValue("theme")), ApplyTheme);
+            window.Closed += (_, _) => tray?.Refresh();
+            window.Show();
+        }
 
         // At most one launcher: reopening it (tray, or launching the app again) brings the open one forward.
         // Only the one shown at login may start a profile by itself after a countdown.
@@ -122,11 +143,16 @@ internal static class Program
             }
 
             launcher = new LauncherWindow(new LauncherViewModel(profiles, executor, history, atLogin: atLogin), OpenConfig);
-            launcher.Closed += (_, _) => launcher = null;
+            launcher.Closed += (_, _) =>
+            {
+                launcher = null;
+                tray?.Refresh();
+            };
             launcher.Show();
         }
 
-        using var tray = new TrayIcon(profiles, executor, OpenConfig, OpenLauncher, app.Shutdown);
+        tray = new TrayIcon(profiles, history, executor, updates, () => ThemeManager.Parse(config.GetValue("theme")),
+            ApplyTheme, OpenConfig, OpenLauncher, app.Shutdown);
 
         // Show the login selector at startup; the app then lives in the tray. Launching the app again while
         // it runs shows the launcher.
@@ -160,9 +186,41 @@ internal static class Program
                 if (launcher is null) Offer();
                 else launcher.Closed += (_, _) => Offer();
             });
+        // Once a day, look for a new version in the background; the tray and Settings show it.
+        if (updates.IsAutoCheckDue)
+            app.Dispatcher.BeginInvoke(async () =>
+            {
+                await updates.CheckAsync();
+                if (updates.AvailableVersion is { } version)
+                    tray?.Notify("Startup Profiles", $"Version {version} is available. Install it from the tray menu or Settings.");
+            });
+
         instance.Listen(() => app.Dispatcher.BeginInvoke(OpenLauncher));
 
-        app.Run();
+        try
+        {
+            app.Run();
+        }
+        finally
+        {
+            tray.Dispose();
+        }
+    }
+
+    private static string AppVersion => typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+
+    // Starts the downloaded installer detached; the app exits only after this returns true.
+    private static bool StartInstaller(string path, string arguments)
+    {
+        try
+        {
+            return System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path, arguments) { UseShellExecute = true }) is not null;
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            Diagnostics.CrashLog.Write("Update", ex);
+            return false;
+        }
     }
 
     private static WebApplication BuildHost(LaunchOptions options)

@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
-using StartupProfiles.App.Mvvm;
+using DotNetLib.Core.Mvvm;
 using StartupProfiles.Core.Models;
 using StartupProfiles.Core.Startup;
 

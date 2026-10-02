@@ -1,5 +1,5 @@
 using StartupProfiles.App.Config;
-using StartupProfiles.App.Mvvm;
+using DotNetLib.Core.Mvvm;
 using StartupProfiles.Core.Startup;
 
 namespace StartupProfiles.App.Discovery;

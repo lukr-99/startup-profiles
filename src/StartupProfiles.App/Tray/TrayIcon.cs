@@ -1,161 +1,151 @@
+using System.ComponentModel;
 using System.Diagnostics;
-using System.Drawing;
 using System.IO;
-using System.Windows.Forms;
+using System.Windows;
+using DotNetLib.Tray;
 using StartupProfiles.App.Themes;
+using StartupProfiles.App.Updates;
 using StartupProfiles.Core.Execution;
-using StartupProfiles.Core.Models;
 using StartupProfiles.Core.Storage;
+using ThemeMode = StartupProfiles.App.Themes.ThemeMode;
 
 namespace StartupProfiles.App.Tray;
 
 /// <summary>
-/// System-tray presence (a WinForms <see cref="NotifyIcon"/> living on the WPF UI thread): re-open the
-/// launcher, run a profile, open the config window, open the data folder, or quit. The menu is
-/// re-themed each time it opens so it follows the app's current light/dark theme.
+/// The notification area icon, on DotNetLib's tray kit (<see cref="TrayIconHost"/>, <see cref="TrayMenuBuilder"/>),
+/// so the menu follows the app theme with no drawing code here. A left click opens the launcher. The menu's
+/// contents come from <see cref="TrayMenuModel"/>; <see cref="Refresh"/> builds it again after anything changes.
 /// </summary>
 public sealed class TrayIcon : IDisposable
 {
-    private readonly NotifyIcon _icon;
+    private static readonly Uri IconUri = new("pack://application:,,,/StartupProfiles;component/Assets/app.ico");
+
+    private readonly TrayIconHost _host;
     private readonly IProfileStore _profiles;
+    private readonly IHistoryStore _history;
     private readonly ProfileExecutor _executor;
+    private readonly UpdateCoordinator _updates;
+    private readonly Func<ThemeMode> _theme;
+    private readonly Action<ThemeMode> _setTheme;
     private readonly Action _openConfig;
     private readonly Action _openLauncher;
     private readonly Action _quit;
 
-    public TrayIcon(IProfileStore profiles, ProfileExecutor executor, Action openConfig, Action openLauncher, Action quit)
+    public TrayIcon(
+        IProfileStore profiles,
+        IHistoryStore history,
+        ProfileExecutor executor,
+        UpdateCoordinator updates,
+        Func<ThemeMode> theme,
+        Action<ThemeMode> setTheme,
+        Action openConfig,
+        Action openLauncher,
+        Action quit)
     {
         _profiles = profiles;
+        _history = history;
         _executor = executor;
+        _updates = updates;
+        _theme = theme;
+        _setTheme = setTheme;
         _openConfig = openConfig;
         _openLauncher = openLauncher;
         _quit = quit;
 
-        var menu = new ContextMenuStrip { ShowImageMargin = false };
-        menu.Opening += (_, _) => Rebuild(menu);
+        _host = new TrayIconHost("Startup Profiles", leftClick: openLauncher);
+        if (LoadIcon() is { } icon) _host.SetIcon(icon);
+        _updates.PropertyChanged += OnUpdatesChanged;
+        Refresh();
+    }
 
-        _icon = new NotifyIcon
+    /// <summary>Builds the menu and tooltip again from the current profiles, history, theme, and update state.</summary>
+    public void Refresh()
+    {
+        var profiles = _profiles.GetAll();
+        var activeId = _history.GetRecent(20).FirstOrDefault(r => r.ProfileId != ProfileExecutor.BaseRunId)?.ProfileId;
+        var entries = TrayMenuModel.Build(profiles, activeId, _theme(), _updates.CurrentVersion,
+            _updates.AvailableVersion, _updates.IsBusy);
+
+        var builder = new TrayMenuBuilder();
+        foreach (var entry in entries) Add(builder, entry);
+        _host.SetMenu(builder.Build());
+        _host.SetToolTip(TrayMenuModel.ToolTip(profiles.FirstOrDefault(p => p.Id == activeId)?.Name, _updates.AvailableVersion));
+    }
+
+    /// <summary>Shows a balloon from the tray.</summary>
+    public void Notify(string title, string message) => _host.Notify(title, message);
+
+    public void Dispose()
+    {
+        _updates.PropertyChanged -= OnUpdatesChanged;
+        _host.Dispose();
+    }
+
+    private void Add(TrayMenuBuilder builder, TrayMenuEntry entry)
+    {
+        if (entry.IsSeparator) builder.Separator();
+        else if (entry.Children.Count > 0) builder.Submenu(entry.Header!, sub => { foreach (var child in entry.Children) Add(sub, child); });
+        else if (entry.Command == TrayCommand.None) builder.Label(entry.Header!);
+        else builder.Item(entry.Header!, () => Execute(entry), entry.IsChecked, entry.IsEnabled, entry.IsDefault);
+    }
+
+    private void Execute(TrayMenuEntry entry)
+    {
+        switch (entry.Command)
         {
-            Icon = LoadIcon(),
-            Text = "Startup Profiles",
-            Visible = true,
-            ContextMenuStrip = menu,
-        };
+            case TrayCommand.OpenLauncher: _openLauncher(); break;
+            case TrayCommand.OpenConfiguration: _openConfig(); break;
+            case TrayCommand.RunProfile: _ = RunAsync(entry.Argument!); break;
+            case TrayCommand.SetTheme: _setTheme(ThemeManager.Parse(entry.Argument)); break;
+            case TrayCommand.CheckForUpdates: _ = CheckForUpdatesAsync(); break;
+            case TrayCommand.InstallUpdate: _ = _updates.InstallAsync(); break;
+            case TrayCommand.OpenDataFolder: OpenDataFolder(); break;
+            case TrayCommand.Exit: _quit(); break;
+        }
 
-        Rebuild(menu);
+        // A checkable item flips its own mark on click; build again so marks match the state.
+        Refresh();
     }
 
-    private void Rebuild(ContextMenuStrip menu)
+    private async Task RunAsync(string profileId)
     {
-        // Colors come from the current theme's WPF tokens; the literals are the same values, used only
-        // when no theme dictionary is loaded.
-        var dark = ThemeManager.EffectiveIsDark;
-        var text = Token("App.Text", dark ? Color.FromArgb(0xEE, 0xF0, 0xF4) : Color.FromArgb(0x1B, 0x1D, 0x22));
-        var muted = Token("App.Muted", dark ? Color.FromArgb(0x9A, 0xA0, 0xB0) : Color.FromArgb(0x6B, 0x70, 0x80));
-        var surface = Token("App.Surface", dark ? Color.FromArgb(0x1C, 0x1F, 0x27) : Color.White);
-        var hover = Token("App.Selection", dark ? Color.FromArgb(0x2A, 0x35, 0x50) : Color.FromArgb(0xDC, 0xE6, 0xFF));
-        var line = Token("App.Border", dark ? Color.FromArgb(0x33, 0x38, 0x46) : Color.FromArgb(0xD9, 0xDC, 0xE3));
-
-        menu.Renderer = new ThemedRenderer(new ThemedColors(surface, hover, line));
-        menu.BackColor = surface;
-        menu.ForeColor = text;
-
-        menu.Items.Clear();
-        Add(menu, "Open launcher...", text, () => _openLauncher());
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(new ToolStripMenuItem("Run a profile") { Enabled = false, ForeColor = muted });
-
-        foreach (var profile in _profiles.GetAll())
-            Add(menu, profile.Name, text, () => Run(profile));
-
-        menu.Items.Add(new ToolStripSeparator());
-        Add(menu, "Configuration...", text, () => _openConfig());
-        Add(menu, "Open data folder", text, OpenDataFolder);
-        menu.Items.Add(new ToolStripMenuItem($"Version {Version()}") { Enabled = false, ForeColor = muted });
-        menu.Items.Add(new ToolStripSeparator());
-        Add(menu, "Exit", text, () => _quit());
+        if (_profiles.Find(profileId) is not { } profile) return;
+        _host.Notify("Startup Profiles", $"Starting {profile.Name}.");
+        await Task.Run(() => _executor.RunAndRecordAsync(profile)).ConfigureAwait(true);
+        Refresh();
     }
 
-    private static Color Token(string key, Color fallback) =>
-        System.Windows.Application.Current?.TryFindResource(key) is System.Windows.Media.SolidColorBrush brush
-            ? Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B)
-            : fallback;
-
-    private static void Add(ContextMenuStrip menu, string text, Color foreColor, Action onClick) =>
-        menu.Items.Add(new ToolStripMenuItem(text, null, (_, _) => onClick()) { ForeColor = foreColor });
-
-    private void Run(Profile profile)
+    private async Task CheckForUpdatesAsync()
     {
-        _icon.ShowBalloonTip(2000, "Startup Profiles", $"Running '{profile.Name}'.", ToolTipIcon.Info);
-        _ = Task.Run(() => _executor.RunAndRecordAsync(profile));
+        await _updates.CheckAsync().ConfigureAwait(true);
+        if (_updates.Status is { } status) _host.Notify("Startup Profiles", status);
     }
 
-    private static Icon LoadIcon()
+    private void OnUpdatesChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(UpdateCoordinator.AvailableVersion) or nameof(UpdateCoordinator.IsBusy))
+            Application.Current?.Dispatcher.BeginInvoke(Refresh);
+    }
+
+    private static byte[]? LoadIcon()
     {
         try
         {
-            if (Environment.ProcessPath is { } exe && Icon.ExtractAssociatedIcon(exe) is { } icon) return icon;
+            using var stream = Application.GetResourceStream(IconUri)?.Stream;
+            if (stream is null) return null;
+            using var copy = new MemoryStream();
+            stream.CopyTo(copy);
+            return copy.ToArray();
         }
-        catch (Exception ex) when (ex is IOException or ArgumentException) { /* fall back */ }
-        return SystemIcons.Application;
+        catch (IOException)
+        {
+            return null;
+        }
     }
 
     private static void OpenDataFolder()
     {
         try { Process.Start(new ProcessStartInfo(StartupProfilesPaths.DataDirectory) { UseShellExecute = true }); }
-        catch (System.ComponentModel.Win32Exception) { /* ignore */ }
-    }
-
-    private static string Version()
-    {
-        var version = typeof(TrayIcon).Assembly.GetName().Version;
-        return version is null ? "unknown" : $"{version.Major}.{version.Minor}.{version.Build}";
-    }
-
-    public void Dispose()
-    {
-        _icon.Visible = false;
-        _icon.Dispose();
-    }
-
-    /// <summary>Renders the tray menu in the app's theme colors (WinForms menus are otherwise system-light).</summary>
-    private sealed class ThemedRenderer : ToolStripProfessionalRenderer
-    {
-        public ThemedRenderer(ThemedColors colors) : base(colors) => RoundedEdges = false;
-
-        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
-        {
-            e.TextColor = e.Item.ForeColor;
-            base.OnRenderItemText(e);
-        }
-    }
-
-    private sealed class ThemedColors : ProfessionalColorTable
-    {
-        public ThemedColors(Color surface, Color hover, Color line)
-        {
-            Surface = surface;
-            Hover = hover;
-            Line = line;
-            UseSystemColors = false;
-        }
-
-        private Color Surface { get; }
-        private Color Hover { get; }
-        private Color Line { get; }
-
-        public override Color ToolStripDropDownBackground => Surface;
-        public override Color ImageMarginGradientBegin => Surface;
-        public override Color ImageMarginGradientMiddle => Surface;
-        public override Color ImageMarginGradientEnd => Surface;
-        public override Color MenuItemSelected => Hover;
-        public override Color MenuItemSelectedGradientBegin => Hover;
-        public override Color MenuItemSelectedGradientEnd => Hover;
-        public override Color MenuItemBorder => Hover;
-        public override Color MenuItemPressedGradientBegin => Hover;
-        public override Color MenuItemPressedGradientEnd => Hover;
-        public override Color MenuBorder => Line;
-        public override Color SeparatorDark => Line;
-        public override Color SeparatorLight => Line;
+        catch (Win32Exception) { /* No shell to open it with; nothing to do. */ }
     }
 }
