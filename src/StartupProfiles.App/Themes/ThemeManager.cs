@@ -8,21 +8,34 @@ namespace StartupProfiles.App.Themes;
 /// <summary>
 /// Merges the light or dark semantic-token dictionary (plus the shared control styles) into the
 /// application resources, and matches the native window title bar to the theme. In
-/// <see cref="ThemeMode.System"/> it follows the Windows "apps use light theme" setting.
+/// <see cref="ThemeMode.System"/> it follows the Windows "apps use light theme" setting, including
+/// changes made while the app runs.
 /// </summary>
 public sealed class ThemeManager
 {
     private const string ControlsUri = "pack://application:,,,/StartupProfiles;component/Themes/Controls.xaml";
 
     private readonly Application _app;
+    private readonly SystemThemeWatcher _systemTheme;
+    private ThemeMode _mode;
 
-    public ThemeManager(Application app) => _app = app;
+    public ThemeManager(Application app)
+    {
+        _app = app;
+        _systemTheme = new SystemThemeWatcher(() => ResolveSystem() == ThemeMode.Dark);
+        _systemTheme.Changed += (_, _) => _app.Dispatcher.BeginInvoke(new Action(OnSystemThemeChanged));
+        _app.Dispatcher.ShutdownStarted += (_, _) => _systemTheme.Stop();
+    }
 
     /// <summary>Whether the most recently applied theme resolves to dark (drives the title-bar color).</summary>
     public static bool EffectiveIsDark { get; private set; }
 
     public void Apply(ThemeMode mode)
     {
+        _mode = mode;
+        if (mode == ThemeMode.System) _systemTheme.Start();
+        else _systemTheme.Stop();
+
         var effective = mode == ThemeMode.System ? ResolveSystem() : mode;
         EffectiveIsDark = effective == ThemeMode.Dark;
 
@@ -45,6 +58,11 @@ public sealed class ThemeManager
         var useDark = EffectiveIsDark ? 1 : 0;
         try { _ = DwmSetWindowAttribute(hwnd, DwmwaUseImmersiveDarkMode, ref useDark, sizeof(int)); }
         catch (DllNotFoundException) { /* Pre-Windows 10 1809: no immersive dark mode. */ }
+    }
+
+    private void OnSystemThemeChanged()
+    {
+        if (_mode == ThemeMode.System) Apply(ThemeMode.System);
     }
 
     private static ThemeMode ResolveSystem()

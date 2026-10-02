@@ -15,6 +15,7 @@
   <SolidColorBrush x:Key="App.OnAccent" Color="#FFFFFF" />
   <SolidColorBrush x:Key="App.Danger" Color="#D1394A" />
   <SolidColorBrush x:Key="App.DangerHover" Color="#BC2F3F" />
+  <SolidColorBrush x:Key="App.DangerSoft" Color="#FDE7EA" />
   <SolidColorBrush x:Key="App.Selection" Color="#DCE6FF" />
   <SolidColorBrush x:Key="App.OnSelection" Color="#1B1D22" />
   <SolidColorBrush x:Key="App.ScrollThumb" Color="#C4CAD4" />

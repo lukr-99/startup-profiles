@@ -29,6 +29,9 @@ public static class StartupProfilesPaths
     /// <summary>The Windows startup entries Startup Profiles switched off at install, restored on uninstall.</summary>
     public static string StartupTakeoverFile => Path.Combine(DataDirectory, "startup-takeover.json");
 
+    /// <summary>The Windows startup entries already looked at, so a newly added one can be offered once.</summary>
+    public static string StartupSeenFile => Path.Combine(DataDirectory, "startup-seen.json");
+
     /// <summary>Discovery file the running host writes so agents and the tray can find its URL.</summary>
     public static string EndpointFile => Path.Combine(DataDirectory, "endpoint.json");
 }

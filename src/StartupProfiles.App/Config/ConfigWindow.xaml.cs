@@ -10,7 +10,7 @@ namespace StartupProfiles.App.Config;
 
 /// <summary>
 /// The configuration window. Drag and drop is view-only plumbing here; every change it makes goes through the
-/// <see cref="ConfigViewModel"/>. Drag sources: the Defaults list, the Created list, and the grip of an action row.
+/// <see cref="ConfigViewModel"/>. Drag sources: the Defaults list, the Created list, and the header of an action card.
 /// Drop targets: the actions table (add or reorder) and the Created list (save to the library). Files from
 /// Explorer are accepted by both targets.
 /// </summary>
@@ -20,8 +20,6 @@ public partial class ConfigWindow : Window
     private const string LibraryItemFormat = "StartupProfiles.LibraryItem";
     private const string ActionRowFormat = "StartupProfiles.ActionRow";
 
-    // Columns whose values come from the library item on a linked row.
-    private static readonly HashSet<string> LinkedColumns = ["Type", "Target", "Arguments", "Admin"];
 
     private readonly ConfigViewModel _viewModel;
     private readonly Action<ThemeMode> _applyTheme;
@@ -72,7 +70,7 @@ public partial class ConfigWindow : Window
     private void OnLibraryMouseDown(object sender, MouseButtonEventArgs e) =>
         ArmDrag(e, LibraryItemFormat, ItemUnder<ListBoxItem>(e.OriginalSource)?.DataContext as LibraryItemRow);
 
-    // Rows drag only from their grip, so clicking cells still selects and edits them.
+    // Cards drag from their header only, so the fields in an open card still take clicks and text selection.
     private void OnActionsMouseDown(object sender, MouseButtonEventArgs e) =>
         ArmDrag(e, ActionRowFormat, HandleUnder(e.OriginalSource) is { DataContext: ActionEditor row } ? row : null);
 
@@ -98,7 +96,6 @@ public partial class ConfigWindow : Window
     private void OnStartupAppsDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (ItemUnder<ListBoxItem>(e.OriginalSource)?.DataContext is not StartupAppItem app) return;
-        CommitGridEdits();
         _viewModel.AddStartupApp(app);
         ScrollToSelectedAction();
     }
@@ -106,7 +103,6 @@ public partial class ConfigWindow : Window
     private void OnLibraryDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (ItemUnder<ListBoxItem>(e.OriginalSource)?.DataContext is not LibraryItemRow row) return;
-        CommitGridEdits();
         _viewModel.AddLibraryRow(row);
         ScrollToSelectedAction();
     }
@@ -120,21 +116,22 @@ public partial class ConfigWindow : Window
             : e.Data.GetDataPresent(StartupAppFormat) || e.Data.GetDataPresent(LibraryItemFormat) || e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Link
             : DragDropEffects.None;
 
-        if (e.Effects == DragDropEffects.None) ActionsGrid.ClearValue(BorderBrushProperty);
-        else ActionsGrid.SetResourceReference(BorderBrushProperty, "App.Accent");
+        if (e.Effects == DragDropEffects.None) ActionsList.ClearValue(BorderBrushProperty);
+        else ActionsList.SetResourceReference(BorderBrushProperty, "App.Accent");
         e.Handled = true;
     }
 
-    private void OnActionsDragLeave(object sender, DragEventArgs e) => ActionsGrid.ClearValue(BorderBrushProperty);
+    private void OnActionsDragLeave(object sender, DragEventArgs e) => ActionsList.ClearValue(BorderBrushProperty);
 
     private void OnActionsDrop(object sender, DragEventArgs e)
     {
-        ActionsGrid.ClearValue(BorderBrushProperty);
+        ActionsList.ClearValue(BorderBrushProperty);
         e.Handled = true;
 
-        // Dropped on a row: land above it. Dropped on the header or empty space: go last.
-        var index = ItemUnder<DataGridRow>(e.OriginalSource)?.GetIndex();
-        CommitGridEdits();
+        // Dropped on a card: land above it. Dropped on empty space: go last.
+        var index = ItemUnder<ListBoxItem>(e.OriginalSource) is { } card
+            ? ActionsList.ItemContainerGenerator.IndexFromContainer(card)
+            : (int?)null;
 
         switch (Payload(e))
         {
@@ -155,22 +152,19 @@ public partial class ConfigWindow : Window
         ScrollToSelectedAction();
     }
 
-    private void OnActionsBeginningEdit(object sender, DataGridBeginningEditEventArgs e)
+    private void OnActionsKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Row.Item is ActionEditor { IsLinked: true } && e.Column.Header is string header && LinkedColumns.Contains(header))
-        {
-            e.Cancel = true;
-            _viewModel.Library.Status = "That row links to the library. Change what it starts in Created.";
-        }
+        // Delete removes the selected card, unless the user is editing text inside it.
+        if (e.Key != Key.Delete || e.OriginalSource is TextBox) return;
+        if (_viewModel.RemoveActionCommand.CanExecute(null)) _viewModel.RemoveActionCommand.Execute(null);
+        e.Handled = true;
     }
 
-    private void OnGridEditorLoaded(object sender, RoutedEventArgs e)
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
-        if (sender is not TextBox box) return;
-        box.Focus();
-        box.SelectAll();
+        _viewModel.FlushPendingSave();
+        base.OnClosing(e);
     }
-
     // ----- Sidebar: drop onto a profile (or Base) to add there, saved, without opening it -----
 
     private ProfileListItem? _dropTarget;
@@ -193,7 +187,6 @@ public partial class ConfigWindow : Window
         e.Handled = true;
         if (target is null || Payload(e) is not { } payload) return;
 
-        CommitGridEdits();
         _viewModel.DropOnProfile(target, payload);
     }
 
@@ -228,7 +221,6 @@ public partial class ConfigWindow : Window
         switch (Payload(e))
         {
             case ActionEditor row:
-                CommitGridEdits();
                 _viewModel.SaveActionToLibrary(row);
                 break;
             case StartupAppItem app:
@@ -248,12 +240,10 @@ public partial class ConfigWindow : Window
         e.Data.GetData(ActionRowFormat) ?? e.Data.GetData(StartupAppFormat) ?? e.Data.GetData(LibraryItemFormat) ??
         e.Data.GetData(DataFormats.FileDrop);
 
-    // Inserting or moving rows while a cell is being edited throws inside DataGrid, so finish any edit first.
-    private void CommitGridEdits() => ActionsGrid.CommitEdit(DataGridEditingUnit.Row, exitEditingMode: true);
 
     private void ScrollToSelectedAction()
     {
-        if (_viewModel.SelectedAction is { } action) ActionsGrid.ScrollIntoView(action);
+        if (_viewModel.SelectedAction is { } action) ActionsList.ScrollIntoView(action);
     }
 
     private static FrameworkElement? HandleUnder(object source)
@@ -261,7 +251,7 @@ public partial class ConfigWindow : Window
         for (var node = source as DependencyObject; node is not null; node = ParentOf(node))
         {
             if (node is FrameworkElement { Tag: "DragHandle" } handle) return handle;
-            if (node is DataGridRow) return null;
+            if (node is ListBoxItem) return null;
         }
 
         return null;

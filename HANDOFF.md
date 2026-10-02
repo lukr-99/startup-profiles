@@ -1,7 +1,7 @@
 # Handoff
 
 Snapshot of Windows Startup Profiles as of 2026-08-31. For the full design see
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); for conventions see [AGENTS.md](AGENTS.md) and
+[docs/ARCHITECTURE.md](ARCHITECTURE.md); for conventions see [AGENTS.md](AGENTS.md) and
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Status: Milestones 1-5, installer, release CI, UI polish, startup takeover, base done; conditions next
@@ -30,7 +30,7 @@ dotnet format StartupProfiles.slnx --verify-no-changes
 - Run the app: `dotnet run --project src/StartupProfiles.App` (add `--headless` for the API only,
   `--port N` to override the port, default 8790).
 - Data lives in `%APPDATA%\StartupProfiles` (`profiles.json`, `config.json`, `history.json`,
-  `endpoint.json`, `startup-takeover.json`, `base.json`, `library.json`). Nothing leaves the machine.
+  `endpoint.json`, `startup-takeover.json`, `startup-seen.json`, `base.json`, `library.json`). Nothing leaves the machine.
 
 ## What exists
 
@@ -153,8 +153,8 @@ It is deliberately not a profile: `StartupBase` in `base.json` via `IBaseStore`,
 the profiles (same action grid; no name/icon/startup/delete) and its "Run now" runs the base alone. API:
 `GET`/`PUT /api/base`, `POST /api/base/run`; profile summaries carry `includeBase`.
 
-Not yet: profile JSON export/import does not include the base, and switching profiles from the tray
-reruns the base actions (by design - the owner chose "with every profile run").
+Switching profiles from the tray reruns the base actions (by design - the owner chose "with every profile
+run"). Backups include the base (see ARCHITECTURE.md, Data safety).
 
 ## Relaunch and action icons (done)
 
@@ -201,16 +201,61 @@ Drag and drop (view plumbing in `ConfigWindow.xaml.cs`, behaviour in `ConfigView
   linked) instead of added twice.
 - Anything dropped onto a sidebar profile (or Base) is added to it without opening it
   (`ConfigViewModel.DropOnProfile`): panel items, Explorer files, or a copied table row.
-- Drops, double-click adds, drag reorder, and Move up/down save immediately; typed cell edits and
-  "Remove row" still wait for Save. Library changes persist immediately.
+- Every change saves by itself (see the profile editor section below). Library changes persist immediately.
 - While a profile that includes the base is edited, the panel hides anything the base already starts
   (`IsOfferedInPanel`, applied as a `CollectionView` filter refreshed on `PanelFilterChanged`), and adding
   such an item to that profile is refused.
 
 Not yet: the install-time startup takeover still adds standalone copies to Everything (drag those rows
-into Created to link them), and profile export/import does not include the library. The drag gestures
+into Created to link them). Backups include the library. The drag gestures
 are verified by view-model tests and offscreen rendering, not UI automation.
 
+## Profile editor: cards and auto-save (done)
+
+The actions table is now a list of cards (`ConfigWindow.xaml`, `App.ActionCard` style). Each card shows the
+step's icon (shell icon, or a Fluent glyph per type from `ActionLabels.Glyph` when the shell has none), a
+plain name (`ActionEditor.DisplayName`), a second line like "App · C:\...\Code.exe" (Store apps say "Microsoft
+Store app"), and chips for non-default options ("waits 5 s", "as admin", "retries 3x"). Clicking a card opens
+its details inline with plain labels ("Kind", "Wait first", "If it fails"); enum values show through
+`ActionLabels` / `Choice<T>` and are stored unchanged. App, file, and folder targets have a Browse button
+(`IUserPrompts.PickTarget`). The card header is the drag handle.
+
+Auto-save: `ProfileEditor.Changed` fires on any edit (name, icon, toggles, any row value, rows added, removed, or
+moved). `ConfigViewModel` hands the write to an `ISaveScheduler`: the window uses `DebouncedSaveScheduler`
+(500 ms after the last edit), tests use the immediate default. A waiting save is flushed when another profile
+opens, on import, and when the window closes, and dropped when the profile is deleted. A blank name is not
+saved; the footer says why. The footer shows "All changes saved" and the last action. There is no Save button.
+
+Removing: a trash icon appears on the hovered or selected card (red on hover); the Delete key does the same.
+Removal saves at once and the footer offers **Undo**, which puts the card back in place (for the profile it came
+from only).
+
+Icons: the picker groups icons (Work, Code, Study, Play, Life, Symbols; `Ui/IconCatalog`), rings the current
+one, and draws them in the text color (the old picker drew black glyphs on the dark theme). The sidebar shows each
+profile's icon and "N steps"; the editor header shows a large icon button with an edit badge.
+## Launcher refresh and At login (done)
+
+The launcher greets by time of day ("Good morning"), shows tiles with each profile's icon, step count, and 1-9
+shortcut, and tags the profile that ran last ("last time", read from `history.json`, base runs ignored). That
+tile is pre-selected: Enter starts it, arrow keys move. "Close" is now "Not now".
+
+`Profile.StartupBehaviour` is now used. The editor calls it **At login**: "Ask me" (`Default`), "Start it if I
+used it last" (`RememberLast`), "Always start it" (`AutoSelectAfterTimeout`). Only the launcher opened at
+login (`LauncherViewModel` with `atLogin: true`) acts on it: the last-used profile wins if it may start by
+itself, else the first "Always start it" one. It counts down `CountdownSeconds` (10) in a banner with Cancel;
+any click or key cancels. The window drives `Tick()` from a one-second `DispatcherTimer`, so tests step the
+countdown directly. A launcher reopened from the tray or Start Menu never counts down.
+## Startup discovery (done)
+
+Apps keep adding themselves to Windows startup after install. At launch (UI mode, after the login launcher
+opens) `StartupDiscovery.FindNew` runs off the UI thread and reports enabled, per-user-switchable, launchable
+entries that were not there last time (`startup-seen.json`; the very first look only records, so existing
+installs are not flooded). They are shown together in **New startup apps** (`App/Discovery`) once the launcher
+closes. Each row picks "Start with <profile>", "Start with Base", "Keep in Created for later", or "Leave it to
+Windows". The default is Everything when startup apps were taken over before (`StartupTakeover.HasTakenOver`),
+else leave it. Apply places each one; a profile or Base choice adds a linked step and switches the entry off in
+Windows, recorded in `startup-takeover.json` so uninstall restores it. "Ask me later" decides nothing, so they
+come back next launch. Settings has a checkbox to turn the check off (`discoverStartupApps` in `config.json`).
 ## Next
 
 1. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.

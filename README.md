@@ -26,7 +26,7 @@ to that profile - as a small declarative startup workflow, not just a list of `.
 > Status: **working**. The portable Core, the Windows adapters, the App host (loopback API + tray), the
 > WPF launcher and config UIs, and the integration contract (protocol / CLI / API + confirmation window)
 > are implemented and tested, and `install/install.ps1` installs it. Still to come: UI visual polish,
-> profile conditions, and an app icon. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the current
+> profile conditions, and an app icon. See [ARCHITECTURE.md](ARCHITECTURE.md) for the current
 > implementation status.
 
 ## The idea
@@ -83,7 +83,7 @@ StartupProfiles.slnx
 | **App / Launcher** | The minimal login selector |
 | **App / Api + Tray** | Loopback config API and the switch-profile tray icon |
 
-Full write-up: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Full write-up: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Integration contract
 

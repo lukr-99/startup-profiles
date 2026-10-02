@@ -10,6 +10,7 @@ internal sealed class FakeUserPrompts : IUserPrompts
     public string? IconResult { get; set; }
     public string? SavePathResult { get; set; }
     public string? OpenPathResult { get; set; }
+    public string? TargetResult { get; set; }
     public List<string> Infos { get; } = [];
 
     public bool Confirm(string message) => ConfirmResult;
@@ -18,4 +19,5 @@ internal sealed class FakeUserPrompts : IUserPrompts
     public void Info(string message) => Infos.Add(message);
     public string? PickSavePath(string suggestedFileName) => SavePathResult;
     public string? PickOpenPath() => OpenPathResult;
+    public string? PickTarget(Core.Models.ActionType type, string? current) => TargetResult;
 }

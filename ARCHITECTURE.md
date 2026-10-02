@@ -7,7 +7,7 @@
 >
 > Note: this design originally called for a WebView2 UI over the loopback server (the Treeline
 > pattern). Milestone 4 switched to a native **WPF** UI talking to Core in-process; the loopback API
-> remains for agents. See [docs/adr/0001-local-wpf-mvvm.md](adr/0001-local-wpf-mvvm.md).
+> remains for agents. See [docs/adr/0001-local-wpf-mvvm.md](docs/adr/0001-local-wpf-mvvm.md).
 
 ## Guiding principle
 
@@ -104,8 +104,34 @@ A profile is therefore a small declarative workflow, e.g. *Work*:
 ## Storage
 
 Profiles and app config live as plain JSON under `%APPDATA%\StartupProfiles` - no database
-engine, nothing leaves the machine. Supports export/import for moving profiles between
-computers. (TOML is a possible alternative; JSON is the default to match Treeline.)
+engine, nothing leaves the machine. A full backup moves a setup between computers (see Data safety).
+(TOML is a possible alternative; JSON is the default to match Treeline.)
+
+### Data safety
+
+The data contract, per CodePrint's data lifecycle rules:
+
+- **Owner and store.** The local user owns everything. The running app is the single writer of its JSON
+  files in `%APPDATA%\StartupProfiles`; one-shot `register` processes write through its loopback API.
+  Files are written atomically (temp file, then move).
+- **Identity.** Profiles have stable slug ids (`work`); library items have stable ids that profile steps
+  link to (`LibraryItemId`). Run history timestamps are `DateTimeOffset` with the local offset.
+- **Schema.** The stores have no version field yet. Changes so far are additive, with defaults for missing
+  fields (for example `IncludeBase` defaults to true), so older files load as they are. A breaking change
+  must add a version field and an explicit migration step before it ships.
+- **Backup.** Settings > Back up writes a `BackupDocument` (`Core/Backup`): `Format`
+  (`startup-profiles-backup`), `Version` (1), `ExportedAt`, `AppVersion`, then all profiles, the base,
+  the library, and the settings. Run history, the startup takeover record, and `startup-seen.json` are
+  machine state and stay out. The user picks the path, so a backup can live outside AppData and
+  survive an uninstall.
+- **Restore.** Settings > Restore parses and checks the file first (format, version not newer than the app,
+  unique non-empty ids, known step kinds) and changes nothing if it fails. It then shows a plan (profiles
+  added, replaced, removed; base, library, and settings counts) and restores only after the user agrees. A
+  full backup replaces everything; an old profiles-only export (a JSON array) adds and replaces profiles
+  only. If a write fails part way, the earlier state is written back.
+- **Deletion.** Deleting a profile asks first and cannot be undone except from a backup.
+  `install/uninstall.ps1 -PurgeData` deletes the data folder; without it the data stays.
+- **Sync and privacy.** No sync and nothing leaves the machine; the loopback API binds to 127.0.0.1 only.
 
 ## Startup registration
 
@@ -176,7 +202,7 @@ Built in StartupProfiles.App (host):
   (Kestrel bound to `127.0.0.1`), starts it, writes `endpoint.json`, then runs the tray (or waits
   headless with `--headless`). Composition root: `ProfileStore` / `ConfigStore` / `HistoryStore`,
   `WindowsRuntime.CreateActionRegistry()`, `ProfileRunner`, `ProfileExecutor`, `ConfirmationService`.
-- **Api/ApiEndpoints** - the endpoints in [docs/API.md](API.md): health, profile CRUD, run, history,
+- **Api/ApiEndpoints** - the endpoints in [docs/API.md](docs/API.md): health, profile CRUD, run, history,
   and register. Deleting a profile and registering an app are both two-phase (a `ConfirmationService`
   token) so nothing destructive or additive happens without an explicit confirm.
 - **Tray** - `NotifyIcon` menu listing profiles (click to re-run via `ProfileExecutor`), open data
@@ -191,8 +217,9 @@ Built in StartupProfiles.App (WPF UI - Milestone 4):
   number-key and Escape shortcuts, "Edit profiles" and "Close". Shown at startup; picking a profile
   runs it through `ProfileExecutor` and closes the window (the app stays in the tray).
 - **Config** - the profile editor (`ConfigWindow` + `ConfigViewModel`, `ProfileEditor`, `ActionEditor`):
-  list/create/delete profiles, edit name/icon/startup behaviour, add/remove/reorder typed actions,
-  save, run, and JSON export/import. Deleting asks for confirmation; dialogs are behind the
+  list/create/delete profiles, edit name/icon/startup behaviour, add/remove/reorder typed actions as
+  cards that save themselves (`ISaveScheduler`), run, and full backup/restore. Deleting asks for
+  confirmation; dialogs are behind the
   `IUserPrompts` seam so the view models are unit-tested without a UI.
 - **Mvvm** - local `ObservableObject` / `RelayCommand` mirroring dotnetlib's shape.
 - **Themes** - light/dark semantic-token `ResourceDictionary` files and a `ThemeManager` that follows
@@ -221,7 +248,7 @@ Deviations and decisions worth noting:
   `TreatWarningsAsErrors`, and `latest-recommended` analysis; `tests/Directory.Build.props`
   suppresses CA1707 for `Method_Condition_ExpectedResult` test names.
 - The UI is **WPF**, not the WebView2 approach the original design named. The reasons and trade-offs
-  are in [docs/adr/0001-local-wpf-mvvm.md](adr/0001-local-wpf-mvvm.md).
+  are in [docs/adr/0001-local-wpf-mvvm.md](docs/adr/0001-local-wpf-mvvm.md).
 - The App project pins `RuntimeFrameworkVersion` to `10.0.7` because the dev SDK resolves `10.0.9` for
   the WPF markup-compile helper, which is not installed here; roll-forward still runs it on newer
   patches. Revisit once the box has a matching runtime.
@@ -263,6 +290,15 @@ per-user entries via the `StartupApproved` flags / task `State`, never deleting 
 app into the Everything profile, record it (`IStartupTakeoverStore`, `startup-takeover.json`), switch it
 off - and the uninstall `Restore`. The installer drives it through `--take-over-startup` /
 `--restore-startup`; `--list-startup` prints the catalog.
+
+Startup discovery: `Core/Startup/StartupDiscovery` keeps the takeover current after install. It remembers
+every startup entry it has looked at (`IStartupSeenStore`, `startup-seen.json`; the first look only records),
+and `FindNew` returns enabled, switchable, launchable entries added since. `Place` takes the user's
+`StartupPlacement`: a profile or the base (kept in the library, added as a linked step once, then switched off
+and recorded through `StartupTakeover.SwitchOff`, so uninstall restores it), library only, or leave it to
+Windows. Every placed entry is marked seen. The App runs `FindNew` off the UI thread after the login launcher
+opens (unless `discoverStartupApps` is `false` in `config.json`) and offers the result in
+`App/Discovery/NewStartupAppsWindow` once the launcher closes.
 
 Base: `Models/StartupBase` is an action list that is deliberately not a `Profile` (no tile, name, or
 icon), persisted by `IBaseStore` / `BaseStore` as `base.json`. `Profile.IncludeBase` (default true, so

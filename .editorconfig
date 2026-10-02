@@ -1,0 +1,18 @@
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.md]
+trim_trailing_whitespace = false
+
+# Source files keep the line endings Git checks out (CRLF on Windows with core.autocrlf), so the
+# CodePrint template's end_of_line = lf applies only to the files .gitattributes pins to LF.
+[*.{md,json,yml,yaml,ps1,sql}]
+end_of_line = lf
+
+[*.{yml,yaml,json}]
+indent_style = space
+indent_size = 2

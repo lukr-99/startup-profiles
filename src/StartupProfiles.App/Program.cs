@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StartupProfiles.App.Api;
 using StartupProfiles.App.Config;
+using StartupProfiles.App.Discovery;
 using StartupProfiles.App.Integration;
 using StartupProfiles.App.Interaction;
 using StartupProfiles.App.Launcher;
@@ -15,6 +17,7 @@ using StartupProfiles.App.Themes;
 using StartupProfiles.App.Tray;
 using StartupProfiles.Core.Confirmations;
 using StartupProfiles.Core.Execution;
+using StartupProfiles.Core.Startup;
 using StartupProfiles.Core.Storage;
 using StartupProfiles.Windows;
 using ThemeMode = StartupProfiles.App.Themes.ThemeMode;
@@ -80,6 +83,9 @@ internal static class Program
         var library = host.Services.GetRequiredService<Core.Library.LibraryService>();
         var executor = host.Services.GetRequiredService<ProfileExecutor>();
         var config = host.Services.GetRequiredService<IConfigStore>();
+        var history = host.Services.GetRequiredService<IHistoryStore>();
+        var backup = new Core.Backup.BackupService(profiles, baseStore, host.Services.GetRequiredService<ILibraryStore>(), config,
+            typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "");
         var prompts = new UserPrompts();
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -98,12 +104,15 @@ internal static class Program
         }
 
         void OpenConfig() =>
-            new ConfigWindow(new ConfigViewModel(profiles, baseStore, library, new WindowsStartupAppCatalog(), executor, prompts),
+            new ConfigWindow(new ConfigViewModel(profiles, baseStore, library, new WindowsStartupAppCatalog(), executor, prompts,
+                    new DebouncedSaveScheduler(), config, backup),
                 ThemeManager.Parse(config.GetValue("theme")), ApplyTheme).Show();
 
         // At most one launcher: reopening it (tray, or launching the app again) brings the open one forward.
+        // Only the one shown at login may start a profile by itself after a countdown.
         LauncherWindow? launcher = null;
-        void OpenLauncher()
+        void OpenLauncher() => ShowLauncher(atLogin: false);
+        void ShowLauncher(bool atLogin)
         {
             if (launcher is not null)
             {
@@ -112,7 +121,7 @@ internal static class Program
                 return;
             }
 
-            launcher = new LauncherWindow(new LauncherViewModel(profiles, executor), OpenConfig);
+            launcher = new LauncherWindow(new LauncherViewModel(profiles, executor, history, atLogin: atLogin), OpenConfig);
             launcher.Closed += (_, _) => launcher = null;
             launcher.Show();
         }
@@ -121,7 +130,36 @@ internal static class Program
 
         // Show the login selector at startup; the app then lives in the tray. Launching the app again while
         // it runs shows the launcher.
-        OpenLauncher();
+        ShowLauncher(atLogin: true);
+
+        // Look for apps that set themselves to start with Windows since last time, off the UI thread, and offer
+        // them once the launcher is out of the way.
+        if (!string.Equals(config.GetValue(AppSettingKeys.DiscoverStartupApps), "false", StringComparison.OrdinalIgnoreCase))
+            app.Dispatcher.BeginInvoke(async () =>
+            {
+                var catalog = new WindowsStartupAppCatalog();
+                var discovery = new StartupDiscovery(
+                    catalog,
+                    new StartupSeenStore(),
+                    new StartupTakeover(catalog, profiles, new StartupTakeoverStore(), WindowsStartupRegistration.DefaultValueName),
+                    profiles,
+                    baseStore,
+                    library,
+                    WindowsStartupRegistration.DefaultValueName);
+
+                IReadOnlyList<StartupEntry> found;
+                try { found = await Task.Run(discovery.FindNew); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+                {
+                    Diagnostics.CrashLog.Write("StartupDiscovery", ex);
+                    return;
+                }
+                if (found.Count == 0) return;
+
+                void Offer() => new NewStartupAppsWindow(new NewStartupAppsViewModel(found, profiles.GetAll(), discovery)).Show();
+                if (launcher is null) Offer();
+                else launcher.Closed += (_, _) => Offer();
+            });
         instance.Listen(() => app.Dispatcher.BeginInvoke(OpenLauncher));
 
         app.Run();

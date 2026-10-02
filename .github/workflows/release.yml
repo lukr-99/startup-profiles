@@ -1,8 +1,9 @@
 name: Release
 
 # Cut a release by pushing a tag like v0.2.0. This publishes a self-contained build, zips it, and
-# attaches StartupProfiles-<version>-win-x64.zip to a GitHub Release. The version is derived from the
-# tag and stamped into the assembly via -p:Version, so releases are versioned from the tag alone.
+# attaches StartupProfiles-<version>-win-x64.zip and its .sha256 checksum to a GitHub Release. The tag
+# must match VersionPrefix in Directory.Build.props, and the version is stamped into the assembly via
+# -p:Version.
 on:
   push:
     tags: ["v*"]
@@ -13,6 +14,8 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    timeout-minutes: 30
+
     steps:
       - uses: actions/checkout@v7
 
@@ -21,12 +24,18 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Derive version from tag
+      - name: Validate tag and project version
         id: ver
         shell: pwsh
         run: |
-          $v = "${{ github.ref_name }}" -replace '^v',''
-          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $tagVersion = '${{ github.ref_name }}' -replace '^v', ''
+          [xml]$props = Get-Content -Raw -LiteralPath Directory.Build.props
+          $projectVersion = @($props.Project.PropertyGroup.VersionPrefix | Where-Object { $_ })[0]
+          if (-not $projectVersion) { throw 'Directory.Build.props has no <VersionPrefix>.' }
+          if ($projectVersion -ne $tagVersion) {
+            throw "Tag version $tagVersion does not match project version $projectVersion."
+          }
+          "version=$tagVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Test
         run: dotnet test StartupProfiles.slnx -c Release
@@ -38,12 +47,47 @@ jobs:
           -p:Version=${{ steps.ver.outputs.version }}
           -o publish
 
+      # Sign before zipping. A zip carries no signature of its own, so the executables inside are
+      # the only thing SmartScreen can check once the user extracts them.
+      # Until a certificate exists this warns and continues; once WINDOWS_CERT_PFX_BASE64 is set it
+      # signs and verifies. Add -Require then. See docs/release-signing.md.
+      - name: Sign executables
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: >-
+          ./tools/sign-windows-artifacts.ps1
+          -Path 'publish/StartupProfiles*.exe'
+          -Description 'Startup Profiles'
+          -DescriptionUrl 'https://github.com/lukr-99/startup-profiles'
+
       - name: Package
         shell: pwsh
         run: Compress-Archive -Path publish\* -DestinationPath StartupProfiles-${{ steps.ver.outputs.version }}-win-x64.zip
 
+      # Same shape as sha256sum output: "<hash>  <file name>", so `sha256sum -c` can check it.
+      - name: Write checksum
+        shell: pwsh
+        run: |
+          $zip = 'StartupProfiles-${{ steps.ver.outputs.version }}-win-x64.zip'
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText("$PWD/$zip.sha256", "$hash  $zip`n")
+
+      - name: Report signing status
+        if: always()
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path 'publish/StartupProfiles*.exe' -ErrorAction SilentlyContinue
+          foreach ($file in $files) {
+            $status = (Get-AuthenticodeSignature -LiteralPath $file.FullName).Status
+            "- $($file.Name): $status" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          files: StartupProfiles-${{ steps.ver.outputs.version }}-win-x64.zip
+          files: |
+            StartupProfiles-${{ steps.ver.outputs.version }}-win-x64.zip
+            StartupProfiles-${{ steps.ver.outputs.version }}-win-x64.zip.sha256
           generate_release_notes: true

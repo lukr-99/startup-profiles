@@ -47,12 +47,17 @@ public sealed class TrayIcon : IDisposable
 
     private void Rebuild(ContextMenuStrip menu)
     {
+        // Colors come from the current theme's WPF tokens; the literals are the same values, used only
+        // when no theme dictionary is loaded.
         var dark = ThemeManager.EffectiveIsDark;
-        var text = dark ? Color.FromArgb(0xEE, 0xF0, 0xF4) : Color.FromArgb(0x1B, 0x1D, 0x22);
-        var muted = dark ? Color.FromArgb(0x9A, 0xA0, 0xB0) : Color.FromArgb(0x6B, 0x70, 0x80);
+        var text = Token("App.Text", dark ? Color.FromArgb(0xEE, 0xF0, 0xF4) : Color.FromArgb(0x1B, 0x1D, 0x22));
+        var muted = Token("App.Muted", dark ? Color.FromArgb(0x9A, 0xA0, 0xB0) : Color.FromArgb(0x6B, 0x70, 0x80));
+        var surface = Token("App.Surface", dark ? Color.FromArgb(0x1C, 0x1F, 0x27) : Color.White);
+        var hover = Token("App.Selection", dark ? Color.FromArgb(0x2A, 0x35, 0x50) : Color.FromArgb(0xDC, 0xE6, 0xFF));
+        var line = Token("App.Border", dark ? Color.FromArgb(0x33, 0x38, 0x46) : Color.FromArgb(0xD9, 0xDC, 0xE3));
 
-        menu.Renderer = new ThemedRenderer(dark);
-        menu.BackColor = dark ? Color.FromArgb(0x1C, 0x1F, 0x27) : Color.White;
+        menu.Renderer = new ThemedRenderer(new ThemedColors(surface, hover, line));
+        menu.BackColor = surface;
         menu.ForeColor = text;
 
         menu.Items.Clear();
@@ -70,6 +75,11 @@ public sealed class TrayIcon : IDisposable
         menu.Items.Add(new ToolStripSeparator());
         Add(menu, "Exit", text, () => _quit());
     }
+
+    private static Color Token(string key, Color fallback) =>
+        System.Windows.Application.Current?.TryFindResource(key) is System.Windows.Media.SolidColorBrush brush
+            ? Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B)
+            : fallback;
 
     private static void Add(ContextMenuStrip menu, string text, Color foreColor, Action onClick) =>
         menu.Items.Add(new ToolStripMenuItem(text, null, (_, _) => onClick()) { ForeColor = foreColor });
@@ -111,7 +121,7 @@ public sealed class TrayIcon : IDisposable
     /// <summary>Renders the tray menu in the app's theme colors (WinForms menus are otherwise system-light).</summary>
     private sealed class ThemedRenderer : ToolStripProfessionalRenderer
     {
-        public ThemedRenderer(bool dark) : base(new ThemedColors(dark)) => RoundedEdges = false;
+        public ThemedRenderer(ThemedColors colors) : base(colors) => RoundedEdges = false;
 
         protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
         {
@@ -122,13 +132,17 @@ public sealed class TrayIcon : IDisposable
 
     private sealed class ThemedColors : ProfessionalColorTable
     {
-        private readonly bool _dark;
+        public ThemedColors(Color surface, Color hover, Color line)
+        {
+            Surface = surface;
+            Hover = hover;
+            Line = line;
+            UseSystemColors = false;
+        }
 
-        public ThemedColors(bool dark) { _dark = dark; UseSystemColors = false; }
-
-        private Color Surface => _dark ? Color.FromArgb(0x1C, 0x1F, 0x27) : Color.White;
-        private Color Hover => _dark ? Color.FromArgb(0x2A, 0x35, 0x50) : Color.FromArgb(0xDC, 0xE6, 0xFF);
-        private Color Line => _dark ? Color.FromArgb(0x33, 0x38, 0x46) : Color.FromArgb(0xD9, 0xDC, 0xE3);
+        private Color Surface { get; }
+        private Color Hover { get; }
+        private Color Line { get; }
 
         public override Color ToolStripDropDownBackground => Surface;
         public override Color ImageMarginGradientBegin => Surface;

@@ -1,0 +1,30 @@
+name: Repository baseline
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      # tools/validate_repository.py and tools/migrations.py are copied from CodePrint's tools/,
+      # because a runner cannot reach the sibling CodePrint checkout.
+      - name: Validate repository
+        run: python tools/validate_repository.py --root .
+
+      - name: Check PowerShell syntax
+        shell: pwsh
+        run: ./tools/test-powershell-syntax.ps1 -Roots tools, install
