@@ -565,57 +565,100 @@
     </TabItem>
 
     <!-- ============ Settings ============ -->
+    <!-- One scrolling page of setting cards, like Windows Settings: each row has its name and a one-line hint on
+         the left and its control on the right (App.SettingCard / App.SettingTitle / App.SettingHint). -->
     <TabItem Header="Settings">
-      <StackPanel Margin="24" MaxWidth="560" HorizontalAlignment="Left">
-        <TextBlock Text="Appearance" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
-        <TextBlock Text="Theme" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,3" />
-        <ComboBox x:Name="ThemeBox" Width="200" HorizontalAlignment="Left" SelectionChanged="OnThemeChanged">
-          <ComboBoxItem Content="System" />
-          <ComboBoxItem Content="Light" />
-          <ComboBoxItem Content="Dark" />
-        </ComboBox>
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="24,18,24,24" MaxWidth="760" HorizontalAlignment="Left" MinWidth="520">
 
-        <TextBlock Text="Startup apps" FontSize="15" FontWeight="SemiBold" Margin="0,26,0,8" />
-        <CheckBox Content="Check for new startup apps when Startup Profiles starts" IsChecked="{Binding DiscoverStartupApps}" />
-        <TextBlock Text="When an app sets itself to start with Windows, you choose which profile it belongs to."
-                   Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="26,4,0,0" />
+          <TextBlock Text="General" Style="{StaticResource App.SettingGroup}" Margin="2,0,0,8" />
+          <Border Style="{StaticResource App.SettingCard}">
+            <DockPanel>
+              <ComboBox x:Name="ThemeBox" DockPanel.Dock="Right" Width="180" VerticalAlignment="Center"
+                        SelectionChanged="OnThemeChanged">
+                <ComboBoxItem Content="Same as Windows" />
+                <ComboBoxItem Content="Light" />
+                <ComboBoxItem Content="Dark" />
+              </ComboBox>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Theme" Style="{StaticResource App.SettingTitle}" />
+                <TextBlock Text="High contrast follows Windows on its own." Style="{StaticResource App.SettingHint}" />
+              </StackPanel>
+            </DockPanel>
+          </Border>
+          <Border Style="{StaticResource App.SettingCard}">
+            <DockPanel>
+              <CheckBox DockPanel.Dock="Right" IsChecked="{Binding DiscoverStartupApps}" VerticalAlignment="Center"
+                        ToolTip="Check for new startup apps when Startup Profiles starts" />
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Ask about new startup apps" Style="{StaticResource App.SettingTitle}" />
+                <TextBlock Text="When an app adds itself to Windows startup, choose its profile." Style="{StaticResource App.SettingHint}" />
+              </StackPanel>
+            </DockPanel>
+          </Border>
 
-        <TextBlock Text="Backup" FontSize="15" FontWeight="SemiBold" Margin="0,26,0,8" />
-        <TextBlock Text="Save your profiles, Base, Created items, and settings to a file you choose, for example on another drive. Restoring shows what changes before anything is replaced."
-                   Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,0,0,10" />
-        <StackPanel Orientation="Horizontal">
-          <Button Content="Back up..." Command="{Binding ExportCommand}" Padding="12,6" Margin="0,0,8,0" />
-          <Button Content="Restore..." Command="{Binding ImportCommand}" Padding="12,6" />
-        </StackPanel>
-        <TextBlock Text="{Binding Status}" Foreground="{DynamicResource App.Muted}" Margin="0,12,0,0" />
-
-        <TextBlock Text="Sync" FontSize="15" FontWeight="SemiBold" Margin="0,26,0,8" />
-        <CheckBox Content="Automatically sync profiles between machines" IsEnabled="False" />
-        <TextBlock Text="Coming soon - profiles currently stay on this PC." Foreground="{DynamicResource App.Muted}"
-                   Margin="26,4,0,0" />
-
-        <!-- Updates: shown when the app has an updater (always, outside tests). -->
-        <StackPanel Visibility="{Binding Updates, Converter={StaticResource NullToVis}}">
-          <TextBlock Text="Updates" FontSize="15" FontWeight="SemiBold" Margin="0,26,0,8" />
-          <TextBlock x:Name="VersionText" Foreground="{DynamicResource App.Muted}" Margin="0,0,0,8" />
-          <CheckBox Content="Check for a new version once a day" IsChecked="{Binding Updates.AutoCheck}" />
-          <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-            <Button Content="Check now" Command="{Binding CheckForUpdatesCommand}" Padding="12,6" Margin="0,0,8,0"
-                    IsEnabled="{Binding Updates.IsBusy, Converter={StaticResource Not}}" />
-            <Button Command="{Binding InstallUpdateCommand}" Style="{StaticResource App.AccentButton}" Margin="0,0,8,0"
-                    Visibility="{Binding Updates.AvailableVersion, Converter={StaticResource NullToVis}}"
-                    IsEnabled="{Binding Updates.IsBusy, Converter={StaticResource Not}}">
-              <TextBlock Text="{Binding Updates.AvailableVersion, StringFormat='Install version {0}'}" />
-            </Button>
+          <!-- Updates: shown when the app has an updater (always, outside tests). -->
+          <StackPanel Visibility="{Binding Updates, Converter={StaticResource NullToVis}}">
+            <TextBlock Text="Updates" Style="{StaticResource App.SettingGroup}" />
+            <Border Style="{StaticResource App.SettingCard}">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                  <Button Command="{Binding InstallUpdateCommand}" Style="{StaticResource App.AccentButton}" Margin="0,0,8,0"
+                          Visibility="{Binding Updates.AvailableVersion, Converter={StaticResource NullToVis}}"
+                          IsEnabled="{Binding Updates.IsBusy, Converter={StaticResource Not}}">
+                    <TextBlock Text="{Binding Updates.AvailableVersion, StringFormat='Install {0}'}" />
+                  </Button>
+                  <Button Content="Check now" Command="{Binding CheckForUpdatesCommand}" Padding="12,6"
+                          IsEnabled="{Binding Updates.IsBusy, Converter={StaticResource Not}}" />
+                </StackPanel>
+                <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                  <TextBlock x:Name="VersionText" Style="{StaticResource App.SettingTitle}" />
+                  <TextBlock Style="{StaticResource App.SettingHint}" TextWrapping="Wrap"
+                             Text="{Binding Updates.Status, TargetNullValue='Checks GitHub Releases. Installs only after you agree.'}" />
+                </StackPanel>
+              </DockPanel>
+            </Border>
+            <Border Style="{StaticResource App.SettingCard}">
+              <DockPanel>
+                <CheckBox DockPanel.Dock="Right" IsChecked="{Binding Updates.AutoCheck}" VerticalAlignment="Center"
+                          ToolTip="Check for a new version once a day" />
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="Check once a day" Style="{StaticResource App.SettingTitle}" />
+                  <TextBlock Style="{StaticResource App.SettingHint}">
+                    <Run Text="Or download it yourself from the" />
+                    <Hyperlink NavigateUri="https://github.com/lukr-99/startup-profiles/releases" RequestNavigate="OnOpenLink"
+                               Foreground="{DynamicResource App.Accent}">release page</Hyperlink><Run Text="." />
+                  </TextBlock>
+                </StackPanel>
+              </DockPanel>
+            </Border>
           </StackPanel>
-          <TextBlock Text="{Binding Updates.Status}" Foreground="{DynamicResource App.Muted}" TextWrapping="Wrap" Margin="0,10,0,0"
-                     Visibility="{Binding Updates.Status, Converter={StaticResource NullToVis}}" />
-          <TextBlock Margin="0,8,0,0" FontSize="12">
-            <Hyperlink NavigateUri="https://github.com/lukr-99/startup-profiles/releases" RequestNavigate="OnOpenLink"
-                       Foreground="{DynamicResource App.Accent}">Release page (download an installer yourself)</Hyperlink>
-          </TextBlock>
+
+          <TextBlock Text="Your data" Style="{StaticResource App.SettingGroup}" />
+          <Border Style="{StaticResource App.SettingCard}">
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Content="Back up..." Command="{Binding ExportCommand}" Padding="12,6" Margin="0,0,8,0" />
+                <Button Content="Restore..." Command="{Binding ImportCommand}" Padding="12,6" />
+              </StackPanel>
+              <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                <TextBlock Text="Backup" Style="{StaticResource App.SettingTitle}" />
+                <TextBlock Style="{StaticResource App.SettingHint}" TextWrapping="Wrap"
+                           Text="{Binding Status, TargetNullValue='Profiles, Base, Created items, and settings in one file.'}" />
+              </StackPanel>
+            </DockPanel>
+          </Border>
+          <Border Style="{StaticResource App.SettingCard}" Opacity="0.6">
+            <DockPanel>
+              <CheckBox DockPanel.Dock="Right" IsEnabled="False" VerticalAlignment="Center" />
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Sync between PCs" Style="{StaticResource App.SettingTitle}" />
+                <TextBlock Text="Coming later. Profiles stay on this PC for now." Style="{StaticResource App.SettingHint}" />
+              </StackPanel>
+            </DockPanel>
+          </Border>
         </StackPanel>
-      </StackPanel>
+      </ScrollViewer>
     </TabItem>
   </TabControl>
 </Window>
