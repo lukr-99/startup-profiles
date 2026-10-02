@@ -223,6 +223,35 @@
     </Setter>
   </Style>
 
+  <!-- ===== Settings page: compact cards, Windows Settings style ===== -->
+  <!-- A small heading above a group of setting cards. -->
+  <Style x:Key="App.SettingGroup" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Margin" Value="2,18,0,8" />
+  </Style>
+
+  <!-- One setting: name and hint on the left, its control docked right. -->
+  <Style x:Key="App.SettingCard" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource App.Surface}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource App.Border}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="16,11" />
+    <Setter Property="Margin" Value="0,0,0,4" />
+    <Setter Property="MinHeight" Value="60" />
+  </Style>
+
+  <Style x:Key="App.SettingTitle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="14" />
+  </Style>
+
+  <Style x:Key="App.SettingHint" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource App.Muted}" />
+    <Setter Property="Margin" Value="0,2,0,0" />
+  </Style>
+
   <!-- ===== TextBox ===== -->
   <Style TargetType="TextBox">
     <Setter Property="Foreground" Value="{DynamicResource App.Text}" />
