@@ -8,7 +8,8 @@ Repository-specific guidance for coding agents working on Windows Startup Profil
    its "Implementation status" section is the source of truth for what exists.
 2. Read [docs/API.md](docs/API.md) and [docs/INTEGRATION.md](docs/INTEGRATION.md) before touching the
    loopback API or the registration contract.
-3. Follow the shared rules and reference repos noted in [CONTRIBUTING.md](CONTRIBUTING.md).
+3. Read [CONTEXT.md](CONTEXT.md) before introducing domain terms.
+4. Follow the shared rules and reference repos noted in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Baseline
 
