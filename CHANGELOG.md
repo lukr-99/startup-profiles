@@ -5,7 +5,12 @@ release is a Git tag `vX.Y.Z` that matches it.
 
 ## [Unreleased]
 
-Nothing is released yet. The first release will be 0.1.0, with this baseline:
+Nothing yet.
+
+## [0.2.0] - 2026-10-02
+
+The first published release. Earlier builds reported 0.1.0 but were never released, so 0.2.0 is
+newer than any installed copy and the in-app updater offers it. It contains:
 
 - A login launcher that asks what you are about to do and runs only that profile's actions: apps,
   URLs, scripts, folders, services, VPN, delays, waits, and kills.
