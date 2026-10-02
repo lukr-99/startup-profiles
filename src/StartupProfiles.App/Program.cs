@@ -80,6 +80,7 @@ internal static class Program
         var library = host.Services.GetRequiredService<Core.Library.LibraryService>();
         var executor = host.Services.GetRequiredService<ProfileExecutor>();
         var config = host.Services.GetRequiredService<IConfigStore>();
+        var history = host.Services.GetRequiredService<IHistoryStore>();
         var prompts = new UserPrompts();
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -103,8 +104,10 @@ internal static class Program
                 ThemeManager.Parse(config.GetValue("theme")), ApplyTheme).Show();
 
         // At most one launcher: reopening it (tray, or launching the app again) brings the open one forward.
+        // Only the one shown at login may start a profile by itself after a countdown.
         LauncherWindow? launcher = null;
-        void OpenLauncher()
+        void OpenLauncher() => ShowLauncher(atLogin: false);
+        void ShowLauncher(bool atLogin)
         {
             if (launcher is not null)
             {
@@ -113,7 +116,7 @@ internal static class Program
                 return;
             }
 
-            launcher = new LauncherWindow(new LauncherViewModel(profiles, executor), OpenConfig);
+            launcher = new LauncherWindow(new LauncherViewModel(profiles, executor, history, atLogin: atLogin), OpenConfig);
             launcher.Closed += (_, _) => launcher = null;
             launcher.Show();
         }
@@ -122,7 +125,7 @@ internal static class Program
 
         // Show the login selector at startup; the app then lives in the tray. Launching the app again while
         // it runs shows the launcher.
-        OpenLauncher();
+        ShowLauncher(atLogin: true);
         instance.Listen(() => app.Dispatcher.BeginInvoke(OpenLauncher));
 
         app.Run();

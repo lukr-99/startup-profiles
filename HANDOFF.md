@@ -233,6 +233,18 @@ from only).
 Icons: the picker groups icons (Work, Code, Study, Play, Life, Symbols; `Ui/IconCatalog`), rings the current
 one, and draws them in the text color (the old picker drew black glyphs on the dark theme). The sidebar shows each
 profile's icon and "N steps"; the editor header shows a large icon button with an edit badge.
+## Launcher refresh and At login (done)
+
+The launcher greets by time of day ("Good morning"), shows tiles with each profile's icon, step count, and 1-9
+shortcut, and tags the profile that ran last ("last time", read from `history.json`, base runs ignored). That
+tile is pre-selected: Enter starts it, arrow keys move. "Close" is now "Not now".
+
+`Profile.StartupBehaviour` is now used. The editor calls it **At login**: "Ask me" (`Default`), "Start it if I
+used it last" (`RememberLast`), "Always start it" (`AutoSelectAfterTimeout`). Only the launcher opened at
+login (`LauncherViewModel` with `atLogin: true`) acts on it: the last-used profile wins if it may start by
+itself, else the first "Always start it" one. It counts down `CountdownSeconds` (10) in a banner with Cancel;
+any click or key cancels. The window drives `Tick()` from a one-second `DispatcherTimer`, so tests step the
+countdown directly. A launcher reopened from the tray or Start Menu never counts down.
 ## Next
 
 1. **Profile conditions**: `ProfileCondition`/`ConditionType` are stored but not evaluated.

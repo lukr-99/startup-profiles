@@ -62,9 +62,9 @@ public sealed class ProfileEditor : ObservableObject
 
     public static IReadOnlyList<Choice<StartupBehaviour>> StartupBehaviours { get; } =
     [
-        new(StartupBehaviour.Default, "Ask every time"),
-        new(StartupBehaviour.RememberLast, "Remember my last choice"),
-        new(StartupBehaviour.AutoSelectAfterTimeout, "Start it after a countdown"),
+        new(StartupBehaviour.Default, "Ask me"),
+        new(StartupBehaviour.RememberLast, "Start it if I used it last"),
+        new(StartupBehaviour.AutoSelectAfterTimeout, "Always start it"),
     ];
 
     /// <summary>Raised after any stored value of the profile or one of its rows changes, or rows are added, removed, or moved.</summary>

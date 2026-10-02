@@ -178,7 +178,8 @@
                     <TextBlock Text="At login" Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" Margin="0,0,8,0" />
                     <ComboBox ItemsSource="{x:Static config:ProfileEditor.StartupBehaviours}"
                               SelectedValuePath="Value" DisplayMemberPath="Label"
-                              SelectedValue="{Binding Editor.StartupBehaviour}" Width="220" />
+                              SelectedValue="{Binding Editor.StartupBehaviour}" Width="220"
+                              ToolTip="When the launcher opens at login. It counts down 10 seconds first, so you can still pick something else." />
                   </StackPanel>
                 </WrapPanel>
               </StackPanel>

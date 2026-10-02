@@ -1,63 +1,130 @@
 <Window x:Class="StartupProfiles.App.Launcher.LauncherWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Startup Profiles" Height="460" Width="560"
-        MinHeight="330" MinWidth="340"
+        xmlns:ui="clr-namespace:StartupProfiles.App.Ui"
+        Title="Startup Profiles" Height="560" Width="600"
+        MinHeight="360" MinWidth="360"
         Icon="pack://application:,,,/StartupProfiles;component/Assets/app.ico"
         WindowStartupLocation="CenterScreen" FontFamily="Segoe UI"
         Background="{DynamicResource App.Background}"
         TextElement.Foreground="{DynamicResource App.Text}">
   <Window.Resources>
-    <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    <ui:BoolToVisibilityConverter x:Key="BoolToVis" />
+
+    <!-- A profile tile. The pre-selected one (the last used, or the one counting down) has an accent edge. -->
+    <Style x:Key="Tile" TargetType="ListBoxItem">
+      <Setter Property="Width" Value="152" />
+      <Setter Property="Margin" Value="6" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Foreground" Value="{DynamicResource App.Text}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBoxItem">
+            <Border x:Name="bd" CornerRadius="10" BorderThickness="1.5" Padding="10,12,10,14"
+                    Background="{DynamicResource App.Surface}" BorderBrush="{DynamicResource App.Border}">
+              <ContentPresenter />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="bd" Property="Background" Value="{DynamicResource App.SurfaceHover}" />
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource App.Accent}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
   </Window.Resources>
-  <Grid Margin="24">
+
+  <Grid Margin="24,20,24,18">
     <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
       <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
 
-    <TextBlock Grid.Row="0" Text="What are you doing?" FontSize="22" FontWeight="SemiBold"
-               HorizontalAlignment="Center" Margin="0,4,0,20" />
-
-    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <ItemsControl ItemsSource="{Binding Profiles}">
-        <ItemsControl.ItemsPanel>
-          <ItemsPanelTemplate>
-            <UniformGrid Columns="3" />
-          </ItemsPanelTemplate>
-        </ItemsControl.ItemsPanel>
-        <ItemsControl.ItemTemplate>
-          <DataTemplate>
-            <Button Margin="7" Padding="8,16" Cursor="Hand"
-                    Command="{Binding DataContext.RunCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                    CommandParameter="{Binding}"
-                    Background="{DynamicResource App.Surface}"
-                    Foreground="{DynamicResource App.Text}"
-                    BorderBrush="{DynamicResource App.Border}">
-              <StackPanel HorizontalAlignment="Center">
-                <Border Width="46" Height="46" CornerRadius="23" Background="{DynamicResource App.SurfaceAlt}">
-                  <TextBlock Text="{Binding Glyph}" FontSize="22" FontWeight="SemiBold"
-                             FontFamily="Segoe UI Emoji, Segoe UI"
-                             HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
-                <TextBlock Text="{Binding Name}" Margin="4,10,4,0" TextAlignment="Center"
-                           TextTrimming="CharacterEllipsis"
-                           Visibility="{Binding DataContext.ShowLabels, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVis}}" />
-              </StackPanel>
-            </Button>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-    </ScrollViewer>
-
-    <TextBlock Grid.Row="2" Text="{Binding Status}" Foreground="{DynamicResource App.Muted}"
-               HorizontalAlignment="Center" Margin="0,14,0,0" />
-
-    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,0">
-      <Button Content="Edit profiles" Command="{Binding EditCommand}" Margin="0,0,12,0" Padding="12,6" />
-      <Button Content="Close" Command="{Binding CloseCommand}" Padding="12,6" />
+    <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,0,0,14">
+      <TextBlock Text="{Binding Greeting}" Foreground="{DynamicResource App.Muted}" HorizontalAlignment="Center" />
+      <TextBlock Text="What are you up to?" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,2,0,0" />
     </StackPanel>
+
+    <!-- Countdown for a profile set to start by itself. Any click or key stops it. -->
+    <Border Grid.Row="1" CornerRadius="8" Padding="14,9" Margin="6,0,6,10" BorderThickness="1"
+            Background="{DynamicResource App.Selection}" BorderBrush="{DynamicResource App.Accent}"
+            Visibility="{Binding IsCountingDown, Converter={StaticResource BoolToVis}}">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Content="Cancel" Command="{Binding CancelCountdownCommand}"
+                Style="{StaticResource App.LinkButton}" VerticalAlignment="Center" />
+        <TextBlock Text="&#xE916;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
+                   Foreground="{DynamicResource App.Accent}" VerticalAlignment="Center" Margin="0,0,10,0" />
+        <TextBlock Text="{Binding CountdownText}" FontWeight="SemiBold" VerticalAlignment="Center" />
+      </DockPanel>
+    </Border>
+
+    <ListBox x:Name="Tiles" Grid.Row="2" ItemsSource="{Binding Profiles}" SelectedItem="{Binding Selected}"
+             ItemContainerStyle="{StaticResource Tile}" HorizontalAlignment="Center"
+             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+             PreviewMouseLeftButtonUp="OnTileClicked">
+      <ListBox.ItemsPanel>
+        <ItemsPanelTemplate>
+          <WrapPanel HorizontalAlignment="Center" />
+        </ItemsPanelTemplate>
+      </ListBox.ItemsPanel>
+      <ListBox.ItemTemplate>
+        <DataTemplate>
+          <Grid>
+            <!-- Shortcut key, top left; "Last time" tag, top right. -->
+            <TextBlock Text="{Binding Number}" FontSize="11" Foreground="{DynamicResource App.Muted}"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-2,-4,0,0"
+                       ToolTip="Press this number to start it" />
+            <Border Style="{StaticResource App.Chip}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,-6,-4,0" Padding="6,0,6,1"
+                    Visibility="{Binding IsLast, Converter={StaticResource BoolToVis}}">
+              <TextBlock Text="last time" FontSize="10" Foreground="{DynamicResource App.Muted}" />
+            </Border>
+            <StackPanel HorizontalAlignment="Center" Margin="0,8,0,0">
+              <Border Width="52" Height="52" CornerRadius="26" Background="{DynamicResource App.SurfaceAlt}">
+                <TextBlock Text="{Binding Glyph}" FontSize="24" FontWeight="SemiBold"
+                           FontFamily="Segoe UI Emoji, Segoe UI"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Margin="0,10,0,0"
+                         TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding CountText}" FontSize="11" Foreground="{DynamicResource App.Muted}"
+                         TextAlignment="Center" Margin="0,2,0,0" />
+            </StackPanel>
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <DockPanel Grid.Row="3" Margin="6,14,6,0">
+      <Button DockPanel.Dock="Right" Content="Not now" Command="{Binding CloseCommand}" Padding="14,6"
+              ToolTip="Close; Startup Profiles stays in the tray" />
+      <Button DockPanel.Dock="Left" Command="{Binding EditCommand}" Padding="12,6">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12"
+                     VerticalAlignment="Center" Margin="0,0,8,0" />
+          <TextBlock Text="Edit profiles" />
+        </StackPanel>
+      </Button>
+      <TextBlock Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" FontSize="12"
+                 HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="10,0">
+        <TextBlock.Style>
+          <Style TargetType="TextBlock">
+            <Setter Property="Text" Value="{Binding Status}" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding Status}" Value="{x:Null}">
+                <Setter Property="Text" Value="Enter or 1-9 to start" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </TextBlock.Style>
+      </TextBlock>
+    </DockPanel>
   </Grid>
 </Window>
