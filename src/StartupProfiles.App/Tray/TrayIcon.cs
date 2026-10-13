@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using DotNetLib.Tray;
+using StartupProfiles.App.Diagnostics;
 using StartupProfiles.App.Themes;
 using StartupProfiles.App.Updates;
 using StartupProfiles.Core.Execution;
@@ -111,7 +112,17 @@ public sealed class TrayIcon : IDisposable
     {
         if (_profiles.Find(profileId) is not { } profile) return;
         _host.Notify("Startup Profiles", $"Starting {profile.Name}.");
-        await Task.Run(() => _executor.RunAndRecordAsync(profile)).ConfigureAwait(true);
+        try
+        {
+            await Task.Run(() => _executor.RunAndRecordAsync(profile)).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            // Started fire-and-forget from the menu, so nothing above would see the exception.
+            CrashLog.Write("Tray run", ex);
+            _host.Notify("Startup Profiles", $"Could not start {profile.Name}: {ex.Message}");
+        }
+
         Refresh();
     }
 

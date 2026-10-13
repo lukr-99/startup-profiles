@@ -38,6 +38,34 @@ public sealed class LauncherViewModelTests
         Assert.Contains(new HistoryStore(services.HistoryFile).GetRecent(), r => r.ProfileId == "t");
     }
 
+    [Fact]
+    public async Task RunAsync_WhenRunThrows_StaysOpenShowsFailureAndLogs()
+    {
+        using var services = AppTestServices.Create();
+        services.Profiles.Save(new Profile
+        {
+            Id = "t",
+            Name = "T",
+            Actions = [new ProfileAction { Type = ActionType.Delay, Delay = TimeSpan.Zero }],
+        });
+        var logged = new List<string>();
+        var viewModel = new LauncherViewModel(services.Profiles, services.FailingExecutor,
+            logError: (source, _) => logged.Add(source));
+        var closed = false;
+        viewModel.CloseRequested += () => closed = true;
+        var tile = viewModel.Profiles.First(t => t.Id == "t");
+
+        await viewModel.RunAsync(tile);
+
+        Assert.False(closed);
+        Assert.StartsWith("Could not start T", viewModel.Status, StringComparison.Ordinal);
+        Assert.Single(logged);
+
+        // Not stuck: a second try runs again instead of being ignored as "already running".
+        await viewModel.RunAsync(tile);
+        Assert.Equal(2, logged.Count);
+    }
+
     private static LauncherViewModel Open(AppTestServices services, bool atLogin = false, int hour = 9) =>
         new(services.Profiles, services.Executor, new HistoryStore(services.HistoryFile), () => new DateTime(2026, 10, 2, hour, 0, 0), atLogin);
 

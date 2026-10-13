@@ -5,7 +5,9 @@ release is a Git tag `vX.Y.Z` that matches it.
 
 ## [Unreleased]
 
-Nothing yet.
+- A profile run that throws no longer leaves the launcher stuck or the configuration window on
+  "Running...". The launcher stays open and shows the error, the configuration window shows
+  "Run failed", the tray shows a balloon, and each failure is written to error.log.
 
 ## [0.2.0] - 2026-10-02
 

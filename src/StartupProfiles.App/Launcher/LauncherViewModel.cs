@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using DotNetLib.Core.Mvvm;
+using StartupProfiles.App.Diagnostics;
 using StartupProfiles.Core.Execution;
 using StartupProfiles.Core.Models;
 using StartupProfiles.Core.Storage;
@@ -21,6 +22,7 @@ public sealed class LauncherViewModel : ObservableObject
     private readonly ProfileExecutor _executor;
     private readonly IHistoryStore? _history;
     private readonly Func<DateTime> _now;
+    private readonly Action<string, Exception> _logError;
     private readonly RelayCommand _cancelCountdownCommand;
     private string? _status;
     private ProfileTile? _selected;
@@ -31,13 +33,15 @@ public sealed class LauncherViewModel : ObservableObject
     /// <param name="history">Where the last run is read from; without it nothing is pre-selected.</param>
     /// <param name="now">The clock for the greeting; the system clock when omitted.</param>
     /// <param name="atLogin">True when shown at login, the only time a profile may start by itself.</param>
+    /// <param name="logError">Where a failed run is logged; <see cref="CrashLog"/> when omitted.</param>
     public LauncherViewModel(IProfileStore profiles, ProfileExecutor executor, IHistoryStore? history = null,
-        Func<DateTime>? now = null, bool atLogin = false)
+        Func<DateTime>? now = null, bool atLogin = false, Action<string, Exception>? logError = null)
     {
         _profiles = profiles;
         _executor = executor;
         _history = history;
         _now = now ?? (() => DateTime.Now);
+        _logError = logError ?? CrashLog.Write;
 
         RunCommand = new RelayCommand(p => { if (p is ProfileTile tile) _ = RunAsync(tile); });
         RunSelectedCommand = new RelayCommand(_ => { if (Selected is { } tile) _ = RunAsync(tile); });
@@ -127,13 +131,29 @@ public sealed class LauncherViewModel : ObservableObject
     /// <summary>Stops the countdown; the user is choosing.</summary>
     public void CancelCountdown() => AutoStart = null;
 
+    /// <summary>Runs the profile and closes the launcher. On a failure it stays open and shows why.</summary>
     public async Task RunAsync(ProfileTile tile)
     {
         if (_running) return;
         _running = true;
         CancelCountdown();
         Status = $"Starting {tile.Name}...";
-        if (_profiles.Find(tile.Id) is { } profile) await _executor.RunAndRecordAsync(profile);
+        try
+        {
+            if (_profiles.Find(tile.Id) is { } profile) await _executor.RunAndRecordAsync(profile);
+        }
+        catch (Exception ex)
+        {
+            // Called fire-and-forget from commands and the countdown, so nothing above would see this.
+            _logError("Launcher run", ex);
+            Status = $"Could not start {tile.Name}: {ex.Message}";
+            return;
+        }
+        finally
+        {
+            _running = false;
+        }
+
         CloseRequested?.Invoke();
     }
 
