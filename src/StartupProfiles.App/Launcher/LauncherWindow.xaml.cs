@@ -17,7 +17,7 @@ public partial class LauncherWindow : Window
         InitializeComponent();
         _viewModel = viewModel;
         DataContext = viewModel;
-        viewModel.CloseRequested += () => Dispatcher.Invoke(Close);
+        viewModel.CloseRequested += () => Dispatcher.BeginInvoke(Close);
         viewModel.OpenConfigRequested += openConfig;
 
         _countdown.Tick += (_, _) =>

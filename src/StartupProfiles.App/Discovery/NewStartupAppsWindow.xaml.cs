@@ -10,7 +10,7 @@ public partial class NewStartupAppsWindow : Window
     {
         InitializeComponent();
         DataContext = viewModel;
-        viewModel.CloseRequested += () => Dispatcher.Invoke(Close);
+        viewModel.CloseRequested += () => Dispatcher.BeginInvoke(Close);
     }
 
     protected override void OnSourceInitialized(EventArgs e)

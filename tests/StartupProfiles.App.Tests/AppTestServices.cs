@@ -11,7 +11,7 @@ internal sealed class AppTestServices : IDisposable
     private readonly string[] _files;
 
     private AppTestServices(string[] files, string historyFile, IProfileStore profiles, IBaseStore baseStore,
-        LibraryService library, ProfileExecutor executor)
+        LibraryService library, ProfileExecutor executor, ProfileExecutor failingExecutor)
     {
         _files = files;
         HistoryFile = historyFile;
@@ -19,6 +19,7 @@ internal sealed class AppTestServices : IDisposable
         Base = baseStore;
         Library = library;
         Executor = executor;
+        FailingExecutor = failingExecutor;
     }
 
     public IProfileStore Profiles { get; }
@@ -26,6 +27,9 @@ internal sealed class AppTestServices : IDisposable
     public LibraryService Library { get; }
     public FakeStartupAppCatalog StartupApps { get; } = new();
     public ProfileExecutor Executor { get; }
+
+    /// <summary>An executor whose every run throws, as when history.json cannot be written.</summary>
+    public ProfileExecutor FailingExecutor { get; }
     public string HistoryFile { get; }
 
     public static AppTestServices Create()
@@ -47,7 +51,8 @@ internal sealed class AppTestServices : IDisposable
             profiles,
             baseStore,
             new LibraryService(libraryStore, profiles, baseStore),
-            new ProfileExecutor(runner, new HistoryStore(historyFile), baseStore, libraryStore));
+            new ProfileExecutor(runner, new HistoryStore(historyFile), baseStore, libraryStore),
+            new ProfileExecutor(runner, new ThrowingHistoryStore(), baseStore, libraryStore));
     }
 
     public void Dispose()

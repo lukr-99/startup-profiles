@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Input;
+using StartupProfiles.App.Diagnostics;
 using StartupProfiles.App.Interaction;
 using DotNetLib.Core.Mvvm;
 using StartupProfiles.Core.Backup;
@@ -30,6 +31,7 @@ public sealed class ConfigViewModel : ObservableObject
     private readonly ISaveScheduler _saves;
     private readonly IConfigStore? _config;
     private readonly BackupService? _backup;
+    private readonly Action<string, Exception> _logError;
 
     private readonly RelayCommand _saveCommand;
     private readonly RelayCommand _undoRemoveCommand;
@@ -53,6 +55,7 @@ public sealed class ConfigViewModel : ObservableObject
     /// <param name="config">App settings shown on the Settings tab; those settings are hidden when omitted.</param>
     /// <param name="backup">Backup and restore for the Settings tab; both are unavailable when omitted.</param>
     /// <param name="updates">The updater for the Settings tab's Updates section; hidden when omitted.</param>
+    /// <param name="logError">Where a failed run is logged; <see cref="CrashLog"/> when omitted.</param>
     public ConfigViewModel(
         IProfileStore profiles,
         IBaseStore baseStore,
@@ -63,7 +66,8 @@ public sealed class ConfigViewModel : ObservableObject
         ISaveScheduler? saveScheduler = null,
         IConfigStore? config = null,
         BackupService? backup = null,
-        Updates.UpdateCoordinator? updates = null)
+        Updates.UpdateCoordinator? updates = null,
+        Action<string, Exception>? logError = null)
     {
         Updates = updates;
         CheckForUpdatesCommand = new RelayCommand(_ => { if (Updates is { } u) _ = u.CheckAsync(); });
@@ -76,6 +80,7 @@ public sealed class ConfigViewModel : ObservableObject
         _saves = saveScheduler ?? new ImmediateSaveScheduler();
         _config = config;
         _backup = backup;
+        _logError = logError ?? CrashLog.Write;
 
         Library = new LibraryPanel(library, prompts);
         Library.ItemSaved += RelinkRows;
@@ -575,18 +580,28 @@ public sealed class ConfigViewModel : ObservableObject
         if (picked is not null) Editor.Icon = picked; // empty string clears the icon; null means cancelled
     }
 
-    private async Task RunAsync()
+    /// <summary>Runs the edited profile (or the base). Public so tests can await it; the Run command does not.</summary>
+    public async Task RunAsync()
     {
         if (Editor is null) return;
 
-        Task<ProfileRun> running;
-        if (Editor.IsBase) running = _executor.RunBaseAndRecordAsync();
-        else if (_profiles.Find(Editor.Id) is { } profile) running = _executor.RunAndRecordAsync(profile);
-        else return;
+        try
+        {
+            Task<ProfileRun> running;
+            if (Editor.IsBase) running = _executor.RunBaseAndRecordAsync();
+            else if (_profiles.Find(Editor.Id) is { } profile) running = _executor.RunAndRecordAsync(profile);
+            else return;
 
-        Status = "Running...";
-        var run = await running;
-        Status = run.Succeeded ? "Run finished." : "Run finished with failures.";
+            Status = "Running...";
+            var run = await running;
+            Status = run.Succeeded ? "Run finished." : "Run finished with failures.";
+        }
+        catch (Exception ex)
+        {
+            // The Run command starts this fire-and-forget, so nothing above would see the exception.
+            _logError("Config run", ex);
+            Status = $"Run failed: {ex.Message}";
+        }
     }
 
     private void AddAction()

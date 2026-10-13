@@ -516,4 +516,25 @@ public sealed class ConfigViewModelTests
 
         Assert.Equal(0, viewModel.Editor.Actions.IndexOf(second));
     }
+
+    [Fact]
+    public async Task Run_WhenRunThrows_ShowsFailureAndLogs()
+    {
+        using var services = AppTestServices.Create();
+        services.Profiles.Save(new Profile
+        {
+            Id = "t",
+            Name = "T",
+            Actions = [new ProfileAction { Type = ActionType.Delay, Delay = TimeSpan.Zero }],
+        });
+        var logged = new List<string>();
+        var viewModel = new ConfigViewModel(services.Profiles, services.Base, services.Library, services.StartupApps,
+            services.FailingExecutor, new FakeUserPrompts(), logError: (source, _) => logged.Add(source));
+        viewModel.Selected = viewModel.Profiles.First(p => p.Id == "t");
+
+        await viewModel.RunAsync();
+
+        Assert.StartsWith("Run failed", viewModel.Status, StringComparison.Ordinal);
+        Assert.Single(logged);
+    }
 }

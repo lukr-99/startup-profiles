@@ -5,6 +5,9 @@ release is a Git tag `vX.Y.Z` that matches it.
 
 ## [Unreleased]
 
+- A profile run that throws no longer leaves the launcher stuck or the configuration window on
+  "Running...". The launcher stays open and shows the error, the configuration window shows
+  "Run failed", the tray shows a balloon, and each failure is written to error.log.
 - Warnings and errors from the app's logging now also go to `error.log`, next to the crash reports.
 - Update System.ServiceProcess.ServiceController to 10.0.12 and DotNetLib to 0.4.1.
 
