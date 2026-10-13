@@ -251,7 +251,8 @@ internal static class Program
                 sp.GetRequiredService<Core.Library.LibraryService>()));
 
         builder.Services.AddSingleton<IUserPrompts, UserPrompts>();
-        builder.Services.AddSingleton<IStartupAppCatalog, WindowsStartupAppCatalog>();
+        // A fresh catalog per use, as before. The factory also pins the parameterless constructor.
+        builder.Services.AddTransient<IStartupAppCatalog>(_ => new WindowsStartupAppCatalog());
         builder.Services.AddSingleton(sp => new Core.Backup.BackupService(
             sp.GetRequiredService<IProfileStore>(), sp.GetRequiredService<IBaseStore>(),
             sp.GetRequiredService<ILibraryStore>(), sp.GetRequiredService<IConfigStore>(), AppVersion));
