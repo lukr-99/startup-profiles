@@ -5,7 +5,8 @@ release is a Git tag `vX.Y.Z` that matches it.
 
 ## [Unreleased]
 
-Nothing yet.
+- Warnings and errors from the app's logging now also go to `error.log`, next to the crash reports.
+- Update System.ServiceProcess.ServiceController to 10.0.12 and DotNetLib to 0.4.1.
 
 ## [0.2.0] - 2026-10-02
 
