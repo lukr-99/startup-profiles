@@ -147,13 +147,11 @@ public sealed class LauncherViewModel : ObservableObject
             // Called fire-and-forget from commands and the countdown, so nothing above would see this.
             _logError("Launcher run", ex);
             Status = $"Could not start {tile.Name}: {ex.Message}";
+            _running = false;
             return;
         }
-        finally
-        {
-            _running = false;
-        }
 
+        // Stays "running" on success: the close is deferred, so a second click must not start again.
         CloseRequested?.Invoke();
     }
 
