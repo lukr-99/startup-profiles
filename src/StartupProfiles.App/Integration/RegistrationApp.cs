@@ -34,7 +34,7 @@ internal static class RegistrationApp
 
         var viewModel = new RegistrationViewModel(request, choices, registrar);
         var window = new RegistrationWindow(viewModel);
-        viewModel.CloseRequested += () => window.Dispatcher.Invoke(window.Close);
+        viewModel.CloseRequested += () => window.Dispatcher.BeginInvoke(window.Close);
         app.Run(window);
     }
 
