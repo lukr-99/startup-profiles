@@ -23,6 +23,7 @@ using StartupProfiles.Core.Confirmations;
 using StartupProfiles.Core.Execution;
 using StartupProfiles.Core.Startup;
 using StartupProfiles.Core.Storage;
+using StartupProfiles.Core.Windows;
 using StartupProfiles.Windows;
 using ThemeMode = StartupProfiles.App.Themes.ThemeMode;
 
@@ -31,6 +32,7 @@ namespace StartupProfiles.App;
 internal static class Program
 {
     private const string InstanceName = "StartupProfiles";
+    private const string UpdatesHttpClient = "updates";
 
     [STAThread]
     private static void Main(string[] args)
@@ -90,8 +92,6 @@ internal static class Program
         var executor = host.Services.GetRequiredService<ProfileExecutor>();
         var config = host.Services.GetRequiredService<IConfigStore>();
         var history = host.Services.GetRequiredService<IHistoryStore>();
-        var backup = new Core.Backup.BackupService(profiles, baseStore, host.Services.GetRequiredService<ILibraryStore>(), config, AppVersion);
-        var prompts = new UserPrompts();
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         app.DispatcherUnhandledException += (_, e) =>
@@ -102,14 +102,7 @@ internal static class Program
         using var theme = new ThemeManager(app);
         theme.Apply(ThemeManager.Parse(config.GetValue("theme")));
 
-        using var http = new HttpClient();
-        http.DefaultRequestHeaders.UserAgent.ParseAdd($"StartupProfiles/{AppVersion}");
-        var updates = new UpdateCoordinator(
-            new GitHubReleaseSource(http, "lukr-99", "startup-profiles",
-                name => name.StartsWith("StartupProfiles-Setup-", StringComparison.OrdinalIgnoreCase) &&
-                        name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)),
-            http, AppVersion, config, StartInstaller,
-            Path.Combine(Path.GetTempPath(), "StartupProfiles", "updates"));
+        var updates = host.Services.GetRequiredService<UpdateCoordinator>();
         updates.ExitRequested += () => app.Dispatcher.BeginInvoke(() => app.Shutdown());
 
         TrayIcon? tray = null;
@@ -122,8 +115,7 @@ internal static class Program
 
         void OpenConfig()
         {
-            var window = new ConfigWindow(new ConfigViewModel(profiles, baseStore, library, new WindowsStartupAppCatalog(), executor,
-                    prompts, new DebouncedSaveScheduler(), config, backup, updates),
+            var window = new ConfigWindow(host.Services.GetRequiredService<ConfigViewModel>(),
                 ThemeManager.Parse(config.GetValue("theme")), ApplyTheme);
             window.Closed += (_, _) => tray?.Refresh();
             window.Show();
@@ -163,7 +155,7 @@ internal static class Program
         if (!string.Equals(config.GetValue(AppSettingKeys.DiscoverStartupApps), "false", StringComparison.OrdinalIgnoreCase))
             app.Dispatcher.BeginInvoke(async () =>
             {
-                var catalog = new WindowsStartupAppCatalog();
+                var catalog = host.Services.GetRequiredService<IStartupAppCatalog>();
                 var discovery = new StartupDiscovery(
                     catalog,
                     new StartupSeenStore(),
@@ -256,6 +248,30 @@ internal static class Program
                 sp.GetRequiredService<IProfileStore>(),
                 sp.GetRequiredService<IBaseStore>(),
                 sp.GetRequiredService<Core.Library.LibraryService>()));
+
+        builder.Services.AddSingleton<IUserPrompts, UserPrompts>();
+        builder.Services.AddSingleton<IStartupAppCatalog, WindowsStartupAppCatalog>();
+        builder.Services.AddSingleton(sp => new Core.Backup.BackupService(
+            sp.GetRequiredService<IProfileStore>(), sp.GetRequiredService<IBaseStore>(),
+            sp.GetRequiredService<ILibraryStore>(), sp.GetRequiredService<IConfigStore>(), AppVersion));
+
+        // The update check and installer download share one named HttpClient with the app's user agent.
+        builder.Services.AddHttpClient(UpdatesHttpClient, client =>
+            client.DefaultRequestHeaders.UserAgent.ParseAdd($"StartupProfiles/{AppVersion}"));
+        builder.Services.AddSingleton(sp =>
+        {
+            var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient(UpdatesHttpClient);
+            return new UpdateCoordinator(
+                new GitHubReleaseSource(http, "lukr-99", "startup-profiles",
+                    name => name.StartsWith("StartupProfiles-Setup-", StringComparison.OrdinalIgnoreCase) &&
+                            name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)),
+                http, AppVersion, sp.GetRequiredService<IConfigStore>(), StartInstaller,
+                Path.Combine(Path.GetTempPath(), "StartupProfiles", "updates"));
+        });
+
+        // One per Settings window, so each gets its own debounced save scheduler.
+        builder.Services.AddTransient<ISaveScheduler, DebouncedSaveScheduler>();
+        builder.Services.AddTransient<ConfigViewModel>();
 
         var app = builder.Build();
         app.Urls.Add($"http://127.0.0.1:{options.Port}");
