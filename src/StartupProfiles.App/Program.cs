@@ -224,6 +224,7 @@ internal static class Program
         });
 
         builder.Logging.SetMinimumLevel(LogLevel.Warning);
+        builder.Logging.AddProvider(new Diagnostics.CrashLogLoggerProvider());
 
         builder.Services.ConfigureHttpJsonOptions(o =>
         {
