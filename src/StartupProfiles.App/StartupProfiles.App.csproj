@@ -25,8 +25,8 @@
   <!-- Shared .NET building blocks (CodePrint standard): MVVM and self-update from Core, the tray kit and theme
        engine from Tray. Restored from the GitHub Packages feed in nuget.config. -->
   <ItemGroup>
-    <PackageReference Include="DotNetLib.Core" Version="0.2.0" />
-    <PackageReference Include="DotNetLib.Tray" Version="0.2.0" />
+    <PackageReference Include="DotNetLib.Core" Version="0.4.1" />
+    <PackageReference Include="DotNetLib.Tray" Version="0.4.1" />
   </ItemGroup>
 
   <ItemGroup>
