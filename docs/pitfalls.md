@@ -19,6 +19,26 @@ came from a tool or platform trap. Put new entries at the top, in this shape:
 A pitfall that could hit another repository is also reported to CodePrint. CodePrint's
 `docs/pitfalls/README.md` explains how.
 
+## A WPF layout test passes locally and fails on the CI runner
+
+- Symptom: `Assert.Single() Failure: The collection contained 2 items` in
+  `LauncherWindowLayoutTests` on GitHub Actions only.
+- Cause: the test showed a real window and expected 7 tiles on one row. The hosted Windows runner has
+  a much smaller work area than a dev screen, so the launcher correctly wrapped.
+- Fix: derive the expected layout from `SystemParameters.WorkArea` through `LauncherLayout`, never from
+  the dev machine's screen size.
+- Closed off by: `Seven_profiles_fill_the_rows_the_layout_plans`
+- Seen: 2026-10-21, PR #8
+
+## The default ListBox template eats 2 px of the width you give it
+
+- Symptom: a `WrapPanel` in a `ListBox` sized to exactly N tiles shows N-1 per row and orphans a tile.
+- Cause: the Aero2 `ListBox` template hardcodes `Padding="1"` on its outer `Border`. It is not a
+  `TemplateBinding`, so `Padding="0"` on the `ListBox` does not remove it.
+- Fix: put the exact width on the items panel (`WrapPanel`), not on the `ListBox`.
+- Closed off by: `LauncherWindowLayoutTests`, which measures the real window
+- Seen: 2026-10-21, PR #8 review
+
 ## WPF UI reshapes the toggle inside the app's combo box
 
 - Symptom: after adopting DotNetLib.Tray, every combo box shows bare text with its chevron on the left
