@@ -50,4 +50,11 @@ public sealed class LauncherLayoutTests
         Assert.Equal(0, left);
         Assert.Equal(0, top);
     }
+
+    [Fact]
+    public void Footer_width_tracks_the_list_but_not_below_the_floor()
+    {
+        Assert.Equal(7 * 164 - 12, LauncherLayout.FooterWidth(7));
+        Assert.Equal(LauncherLayout.MinContentWidth - 12, LauncherLayout.FooterWidth(1));
+    }
 }

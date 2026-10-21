@@ -19,7 +19,7 @@ public sealed record ProfileTile(string Id, string Name, string Glyph, bool IsEm
 
     public static ProfileTile From(Profile profile, int index = 0, bool isLast = false)
     {
-        var (glyph, kind) = ProfileIcon.Resolve(profile.Icon, profile.Name);
+        var (glyph, kind) = ProfileIcon.Resolve(profile.Icon, profile.Id, profile.Name);
         return Build(profile, glyph, kind, index, isLast);
     }
 

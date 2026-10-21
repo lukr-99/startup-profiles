@@ -9,8 +9,20 @@ namespace StartupProfiles.App.Launcher;
 
 public partial class LauncherWindow : Window
 {
+    public static readonly DependencyProperty TileListWidthProperty =
+        DependencyProperty.Register(nameof(TileListWidth), typeof(double), typeof(LauncherWindow), new PropertyMetadata(double.NaN));
+
+    public static readonly DependencyProperty FooterWidthProperty =
+        DependencyProperty.Register(nameof(FooterWidth), typeof(double), typeof(LauncherWindow), new PropertyMetadata(double.NaN));
+
     private readonly LauncherViewModel _viewModel;
     private readonly DispatcherTimer _countdown = new() { Interval = TimeSpan.FromSeconds(1) };
+
+    /// <summary>Exact width of the tile panel: columns x tile slot, set from <see cref="LauncherLayout"/>.</summary>
+    public double TileListWidth { get => (double)GetValue(TileListWidthProperty); private set => SetValue(TileListWidthProperty, value); }
+
+    /// <summary>Width of the footer row, so a long status message trims instead of widening the window.</summary>
+    public double FooterWidth { get => (double)GetValue(FooterWidthProperty); private set => SetValue(FooterWidthProperty, value); }
 
     public LauncherWindow(LauncherViewModel viewModel, Action openConfig)
     {
@@ -30,7 +42,14 @@ public partial class LauncherWindow : Window
 
         viewModel.Profiles.CollectionChanged += (_, _) => Dispatcher.BeginInvoke(ApplyLayout);
         SizeChanged += (_, _) => PlaceAtBottomCentre();
+        SystemParameters.StaticPropertyChanged += OnSystemParameterChanged;
+        Closed += (_, _) => SystemParameters.StaticPropertyChanged -= OnSystemParameterChanged;
         ApplyLayout();
+    }
+
+    private void OnSystemParameterChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SystemParameters.WorkArea)) Dispatcher.BeginInvoke(ApplyLayout);
     }
 
     // Width follows the profile count; height follows the content (SizeToContent).
@@ -38,7 +57,8 @@ public partial class LauncherWindow : Window
     {
         var work = SystemParameters.WorkArea;
         var columns = LauncherLayout.Columns(_viewModel.Profiles.Count, work.Width);
-        Tiles.Width = LauncherLayout.ListWidth(columns);
+        TileListWidth = LauncherLayout.ListWidth(columns);
+        FooterWidth = LauncherLayout.FooterWidth(columns);
         MaxWidth = work.Width;
         MaxHeight = work.Height;
         PlaceAtBottomCentre();
