@@ -7,10 +7,10 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=launcher:LauncherViewModel, IsDesignTimeCreatable=False}"
         xmlns:ui="clr-namespace:StartupProfiles.App.Ui"
-        Title="Startup Profiles" Height="560" Width="600"
-        MinHeight="360" MinWidth="360"
+        Title="Startup Profiles" SizeToContent="WidthAndHeight" ResizeMode="CanMinimize"
+        MinWidth="360"
         Icon="pack://application:,,,/StartupProfiles;component/Assets/app.ico"
-        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI"
+        WindowStartupLocation="Manual" FontFamily="Segoe UI"
         Background="{DynamicResource App.Background}"
         TextElement.Foreground="{DynamicResource App.Text}">
   <Window.Resources>
@@ -72,11 +72,21 @@
 
     <ListBox x:Name="Tiles" Grid.Row="2" ItemsSource="{Binding Profiles}" SelectedItem="{Binding Selected}"
              ItemContainerStyle="{StaticResource Tile}" HorizontalAlignment="Center"
+             BorderThickness="0" Padding="0"
              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
              PreviewMouseLeftButtonUp="OnTileClicked">
+      <!-- No padded border: the default template's 1 DIP padding would shave 2 DIP off the row width. -->
+      <ListBox.Template>
+        <ControlTemplate TargetType="ListBox">
+          <ScrollViewer Focusable="False" HorizontalScrollBarVisibility="Disabled" Padding="0">
+            <ItemsPresenter />
+          </ScrollViewer>
+        </ControlTemplate>
+      </ListBox.Template>
       <ListBox.ItemsPanel>
         <ItemsPanelTemplate>
-          <WrapPanel HorizontalAlignment="Center" />
+          <WrapPanel HorizontalAlignment="Center"
+                     Width="{Binding TileListWidth, RelativeSource={RelativeSource AncestorType=Window}}" />
         </ItemsPanelTemplate>
       </ListBox.ItemsPanel>
       <ListBox.ItemTemplate>
@@ -93,9 +103,21 @@
             </Border>
             <StackPanel HorizontalAlignment="Center" Margin="0,8,0,0">
               <Border Width="52" Height="52" CornerRadius="26" Background="{DynamicResource App.SurfaceAlt}">
-                <TextBlock Text="{Binding Glyph}" FontSize="24" FontWeight="SemiBold"
-                           FontFamily="Segoe UI Emoji, Segoe UI"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Glyph}" FontSize="24"
+                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="FontFamily" Value="Segoe UI Emoji, Segoe UI" />
+                      <Setter Property="FontWeight" Value="SemiBold" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsFluent}" Value="True">
+                          <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+                          <Setter Property="FontWeight" Value="Normal" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
               </Border>
               <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Margin="0,10,0,0"
                          TextAlignment="Center" TextTrimming="CharacterEllipsis" />
@@ -107,7 +129,8 @@
       </ListBox.ItemTemplate>
     </ListBox>
 
-    <DockPanel Grid.Row="3" Margin="6,14,6,0">
+    <DockPanel Grid.Row="3" Margin="6,14,6,0" HorizontalAlignment="Center"
+               Width="{Binding FooterWidth, RelativeSource={RelativeSource AncestorType=Window}}">
       <Button DockPanel.Dock="Right" Content="Not now" Command="{Binding CloseCommand}" Padding="14,6"
               ToolTip="Close; Startup Profiles stays in the tray" />
       <Button DockPanel.Dock="Left" Command="{Binding EditCommand}" Padding="12,6">
@@ -118,7 +141,8 @@
         </StackPanel>
       </Button>
       <TextBlock Foreground="{DynamicResource App.Muted}" VerticalAlignment="Center" FontSize="12"
-                 HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="10,0">
+                 HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="10,0"
+                 ToolTip="{Binding Status}">
         <TextBlock.Style>
           <Style TargetType="TextBlock">
             <Setter Property="Text" Value="{Binding Status}" />

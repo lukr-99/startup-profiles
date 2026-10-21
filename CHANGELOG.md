@@ -10,6 +10,10 @@ release is a Git tag `vX.Y.Z` that matches it.
   "Run failed", the tray shows a balloon, and each failure is written to error.log.
 - Warnings and errors from the app's logging now also go to `error.log`, next to the crash reports.
 - Update System.ServiceProcess.ServiceController to 10.0.12 and DotNetLib to 0.4.1.
+- The launcher sizes itself to the number of profiles and always sits at the bottom centre of the
+  screen. A long status message is trimmed instead of widening the window.
+- Launcher tiles use one Segoe Fluent Icons style, picked by the profile's id or icon key, with the
+  emoji or the name's initial as a fallback.
 
 ## [0.2.0] - 2026-10-02
 
