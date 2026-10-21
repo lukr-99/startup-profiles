@@ -7,10 +7,10 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=launcher:LauncherViewModel, IsDesignTimeCreatable=False}"
         xmlns:ui="clr-namespace:StartupProfiles.App.Ui"
-        Title="Startup Profiles" Height="560" Width="600"
-        MinHeight="360" MinWidth="360"
+        Title="Startup Profiles" SizeToContent="WidthAndHeight"
+        MinWidth="360"
         Icon="pack://application:,,,/StartupProfiles;component/Assets/app.ico"
-        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI"
+        WindowStartupLocation="Manual" FontFamily="Segoe UI"
         Background="{DynamicResource App.Background}"
         TextElement.Foreground="{DynamicResource App.Text}">
   <Window.Resources>
@@ -72,6 +72,7 @@
 
     <ListBox x:Name="Tiles" Grid.Row="2" ItemsSource="{Binding Profiles}" SelectedItem="{Binding Selected}"
              ItemContainerStyle="{StaticResource Tile}" HorizontalAlignment="Center"
+             BorderThickness="0" Padding="0"
              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
              PreviewMouseLeftButtonUp="OnTileClicked">
       <ListBox.ItemsPanel>

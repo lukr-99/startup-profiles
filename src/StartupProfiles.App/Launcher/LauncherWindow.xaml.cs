@@ -27,6 +27,28 @@ public partial class LauncherWindow : Window
         };
         if (viewModel.IsCountingDown) _countdown.Start();
         Closed += (_, _) => _countdown.Stop();
+
+        viewModel.Profiles.CollectionChanged += (_, _) => Dispatcher.BeginInvoke(ApplyLayout);
+        SizeChanged += (_, _) => PlaceAtBottomCentre();
+        ApplyLayout();
+    }
+
+    // Width follows the profile count; height follows the content (SizeToContent).
+    private void ApplyLayout()
+    {
+        var work = SystemParameters.WorkArea;
+        var columns = LauncherLayout.Columns(_viewModel.Profiles.Count, work.Width);
+        Tiles.Width = LauncherLayout.ListWidth(columns);
+        MaxWidth = work.Width;
+        MaxHeight = work.Height;
+        PlaceAtBottomCentre();
+    }
+
+    private void PlaceAtBottomCentre()
+    {
+        var work = SystemParameters.WorkArea;
+        if (ActualWidth <= 0 || ActualHeight <= 0) return;
+        (Left, Top) = LauncherLayout.Position(ActualWidth, ActualHeight, work.Left, work.Top, work.Width, work.Height);
     }
 
     protected override void OnSourceInitialized(EventArgs e)
