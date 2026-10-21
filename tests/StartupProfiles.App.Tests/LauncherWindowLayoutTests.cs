@@ -10,17 +10,20 @@ namespace StartupProfiles.App.Tests;
 /// <summary>Measures the real launcher window, so a template that eats width (and orphans a tile) fails here.</summary>
 public sealed class LauncherWindowLayoutTests
 {
+    // The expected rows come from LauncherLayout for this machine's work area, so the test holds on a
+    // narrow CI screen too. A template that eats width puts one tile fewer per row and adds a row.
     [Fact]
-    public void Seven_profiles_share_one_row() => RunSta(() =>
+    public void Seven_profiles_fill_the_rows_the_layout_plans() => RunSta(() =>
     {
         using var services = AppTestServices.Create();
         services.Profiles.Save(new Profile { Id = "deadlock", Name = "Deadlock", Icon = "games" });
         var window = Create(services);
+        var columns = LauncherLayout.Columns(7, SystemParameters.WorkArea.Width);
 
         var rows = RowTops(window);
 
         Assert.Equal(7, services.Profiles.GetAll().Count);
-        Assert.Single(rows);
+        Assert.Equal((int)Math.Ceiling(7 / (double)columns), rows.Count);
     });
 
     [Fact]
